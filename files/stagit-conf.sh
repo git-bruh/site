@@ -1,0 +1,6 @@
+GIT_HOME="/var/lib/git/repos"
+WWW_HOME="/var/lib/git/home"
+CLONE_URI="git://git.mydomain.tld"
+DEFAULT_OWNER="username"
+DEFAULT_DESCRIPTION="default description"
+GIT_USER="git"

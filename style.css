@@ -1,0 +1,40 @@
+:root {
+  --bg-color: #121212;
+  --text-color: white;
+  --light-gray: #eee;
+}
+
+a, body {
+  background: var(--bg-color);
+  color: var(--text-color);
+}
+
+body {
+  padding: 0 1em;
+  max-width: 800px;
+}
+
+header * {
+  text-decoration: none;
+}
+
+header nav a {
+  margin-right: 0.5em;
+}
+
+table {
+  width: 100%
+}
+
+table a {
+  text-decoration: none;
+}
+
+table a:hover {
+  text-decoration: underline
+}
+
+.index-date, .index-post {
+  padding-top: 20px;
+  color: var(--light-gray)
+}
