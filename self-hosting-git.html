@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang=en>
+  <head>
+    <title>Self hosting git</title>
+    <link rel="stylesheet" href="style.css" type="text/css">
+    <link rel="icon" type="image/png" sizes="64x64" href="favicon.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+  </head>
+
+<body><header>
+    <nav>
+      <a href=/>[Home]</a>
+      <a href="https://git.git-bruh.duckdns.org">[Git]</a>
+    </nav></header>
+  <main>
+<h2>Self hosting <code>git</code></h2>
+<p>In this post, I'll walk you through the steps for setting up a simple <code>git</code> server. We'll be using <code>git daemon</code> to serve our repositories, and <code>stagit</code> for the frontend.</p>
+<h2>Requirements</h2>
+<ul>
+<li>C99 compiler.</li>
+<li>Any <code>patch</code> implementation.</li>
+<li>POSIX complaint shell.</li>
+<li>~15 minutes of your time.</li>
+</ul>
+<h2>Setup</h2>
+<p>Assuming that you already have <code>git</code> installed on your system, the next step is to build our custom patched version of <code>stagit</code>.</p>
+<p>For building <a href="https://codemadness.org/git/stagit/"><code>stagit</code></a>, we'll require <a href="https://github.com/libgit2/libgit2"><code>libgit2</code></a>, <a href="https://github.com/alecthomas/chroma"><code>chroma</code></a> and <a href="https://github.com/github/cmark-gfm"><code>cmark-gfm</code></a>. The latter two are required by our patch for syntax highlighting and markdown rendering respectively, so make sure that you have all these dependencies installed. Now, we're ready to build <code>stagit</code>:</p>
+<ul>
+<li>
+<p>Obtain the latest <code>stagit</code> release tarball from <a href="https://codemadness.org/releases/stagit/">codemadness.org</a>. The patch can be found in my personal <a href="https://git.git-bruh.duckdns.org/kiss-repo/file/repo/stagit/patches/syntax-highlighting.patch.html">KISS repository</a>. The features were originally implemented in <a href="https://git.knutsen.co/stagit/">this</a> fork of <code>stagit</code>, which was further forked <a href="https://sr.ht/~armaan/stagit/">here</a> to use <code>chroma</code> and <code>cmark-gfm</code> instead of slow <code>pygments</code>. All credits go to the authors of these two forks, I've just extracted their changes into a single patch.</p>
+</li>
+<li>
+<p>Apply the patch and build <code>stagit</code>:</p>
+</li>
+</ul>
+<div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma">patch -p1 &lt; syntax-highlighting.patch
+
+make &amp;&amp; make install
+</pre></td></tr></table>
+</div>
+<p>Next, we're going to create a few helper scripts to save us some time. The scripts are taken from <a href="https://hosakacorp.net/p/stagit-server.html">this</a> article with some modifications made to them.</p>
+<p>Create a basic config file at <code>/etc/stagit/stagit.conf</code>:</p>
+<div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma">GIT_HOME=&#34;/var/lib/git/repos&#34;
+WWW_HOME=&#34;/var/lib/git/home&#34;
+CLONE_URI=&#34;git://git.mydomain.tld&#34;
+DEFAULT_OWNER=&#34;username&#34;
+DEFAULT_DESCRIPTION=&#34;default description&#34;
+GIT_USER=&#34;git&#34;
+</pre></td></tr></table>
+</div>
+<p><code>post-receive</code>: <code>git</code> hook for updating the repository's frontend (Placed in <code>/etc/stagit</code>).</p>
+<div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><span class="cp">#!/bin/sh
+</span><span class="cp"></span>
+<span class="c1"># Fail if an unset variable is referenced (bad config).</span>
+<span class="nb">set</span> -eu
+
+. /etc/stagit/stagit.conf
+
+<span class="c1"># The hook is called from the repository&#39;s root.</span>
+<span class="nv">src</span><span class="o">=</span><span class="s2">&#34;</span><span class="k">$(</span><span class="nb">pwd</span><span class="k">)</span><span class="s2">&#34;</span>
+<span class="nv">name</span><span class="o">=</span><span class="k">$(</span>basename <span class="s2">&#34;</span><span class="nv">$src</span><span class="s2">&#34;</span><span class="k">)</span>
+<span class="nv">dst</span><span class="o">=</span><span class="s2">&#34;</span><span class="nv">$WWW_HOME</span><span class="s2">/</span><span class="k">$(</span>basename <span class="s2">&#34;</span><span class="nv">$name</span><span class="s2">&#34;</span> <span class="s1">&#39;.git&#39;</span><span class="k">)</span><span class="s2">&#34;</span>
+mkdir -p <span class="s2">&#34;</span><span class="nv">$dst</span><span class="s2">&#34;</span>
+<span class="nb">cd</span> <span class="s2">&#34;</span><span class="nv">$dst</span><span class="s2">&#34;</span>
+
+<span class="nb">echo</span> <span class="s2">&#34;[stagit] building </span><span class="nv">$dst</span><span class="s2">&#34;</span>
+stagit <span class="s2">&#34;</span><span class="nv">$src</span><span class="s2">&#34;</span>
+
+<span class="nb">echo</span> <span class="s2">&#34;[stagit] linking </span><span class="nv">$dst</span><span class="s2">&#34;</span>
+ln -sf log.html index.html
+
+<span class="k">for</span> file in style.css logo.png<span class="p">;</span> <span class="k">do</span>
+    ln -sf <span class="s2">&#34;../</span><span class="nv">$file</span><span class="s2">&#34;</span> <span class="s2">&#34;</span><span class="nv">$file</span><span class="s2">&#34;</span>
+<span class="k">done</span>
+
+stagit-gen-index
+</pre></td></tr></table>
+</div>
+<p>Place the following scripts somewhere in <code>PATH</code>:</p>
+<p><code>stagit-gen-index</code>: Updating the repository index when creating a new repo.</p>
+<div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><span class="cp">#!/bin/sh
+</span><span class="cp"></span>
+<span class="c1"># Fail if an unset variable is referenced (bad config).</span>
+<span class="nb">set</span> -eu
+
+. /etc/stagit/stagit.conf
+
+stagit-index <span class="s2">&#34;</span><span class="nv">$GIT_HOME</span><span class="s2">&#34;</span>/*.git &gt; <span class="s2">&#34;</span><span class="nv">$WWW_HOME</span><span class="s2">/index.html&#34;</span>
+</pre></td></tr></table>
+</div>
+<p><code>stagit-new-repo</code>: Creating a new repository with some boilerplate.</p>
+<div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><span class="cp">#!/bin/sh
+</span><span class="cp"></span>
+<span class="c1"># Fail if an unset variable is referenced (bad config).</span>
+<span class="nb">set</span> -eu
+
+. /etc/stagit/stagit.conf
+
+<span class="k">if</span> <span class="o">[</span> <span class="nv">$#</span> -gt <span class="m">1</span> <span class="o">]</span><span class="p">;</span> <span class="k">then</span>
+        <span class="nv">DESC</span><span class="o">=</span><span class="s2">&#34;</span><span class="nv">$2</span><span class="s2">&#34;</span>
+<span class="k">else</span>
+        <span class="nv">DESC</span><span class="o">=</span><span class="s2">&#34;</span><span class="nv">$DEFAULT_DESCRIPTION</span><span class="s2">&#34;</span>
+<span class="k">fi</span>
+
+<span class="k">if</span> <span class="o">[</span> <span class="nv">$#</span> -eq <span class="m">0</span> <span class="o">]</span><span class="p">;</span> <span class="k">then</span>
+        <span class="nb">printf</span> <span class="s2">&#34;not enough args\n&#34;</span> &gt;<span class="p">&amp;</span><span class="m">2</span>
+        <span class="nb">exit</span> <span class="m">1</span>
+<span class="k">else</span>
+        <span class="nv">REPO</span><span class="o">=</span><span class="s2">&#34;</span><span class="k">$(</span>basename <span class="s2">&#34;</span><span class="nv">$1</span><span class="s2">&#34;</span><span class="k">)</span><span class="s2">&#34;</span>
+<span class="k">fi</span>
+
+git init --bare <span class="s2">&#34;</span><span class="nv">$GIT_HOME</span><span class="s2">/</span><span class="nv">$REPO</span><span class="s2">.git&#34;</span>
+
+<span class="c1"># Share a common `git` hook between repositories.</span>
+ln -sf <span class="s2">&#34;/etc/stagit/post-receive&#34;</span> <span class="s2">&#34;</span><span class="nv">$GIT_HOME</span><span class="s2">/</span><span class="nv">$REPO</span><span class="s2">.git/hooks/post-receive&#34;</span>
+
+<span class="nb">echo</span> <span class="s2">&#34;</span><span class="nv">$CLONE_URI</span><span class="s2">/</span><span class="nv">$REPO</span><span class="s2">.git&#34;</span> &gt; <span class="s2">&#34;</span><span class="nv">$GIT_HOME</span><span class="s2">/</span><span class="nv">$REPO</span><span class="s2">.git/url&#34;</span>
+<span class="nb">echo</span> <span class="s2">&#34;</span><span class="nv">$DEFAULT_OWNER</span><span class="s2">&#34;</span> &gt; <span class="s2">&#34;</span><span class="nv">$GIT_HOME</span><span class="s2">/</span><span class="nv">$REPO</span><span class="s2">.git/owner&#34;</span>
+
+<span class="c1"># Ensure that `git daemon` allows repository cloning.</span>
+:&gt; <span class="s2">&#34;</span><span class="nv">$GIT_HOME</span><span class="s2">/</span><span class="nv">$REPO</span><span class="s2">.git/git-daemon-export-ok&#34;</span>
+
+<span class="nb">echo</span> <span class="s2">&#34;</span><span class="nv">$DESC</span><span class="s2">&#34;</span> &gt; <span class="s2">&#34;</span><span class="nv">$GIT_HOME</span><span class="s2">/</span><span class="nv">$REPO</span><span class="s2">.git/description&#34;</span>
+
+mkdir <span class="s2">&#34;</span><span class="nv">$WWW_HOME</span><span class="s2">/</span><span class="nv">$REPO</span><span class="s2">&#34;</span>
+</pre></td></tr></table>
+</div>
+<p>Now set up a separate user to serve our repositories:</p>
+<div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma">adduser git
+for dir in repos home; do mkdir -p &#34;/var/lib/git/$dir&#34;; done
+chown -R git:git /var/lib/git
+su - git
+mkdir -p ~/.ssh
+echo &#34;My public SSH key&#34; &gt;&gt; ~/.ssh/authorized_keys # For pushing to repos.
+</pre></td></tr></table>
+</div>
+<p>Almost there, create a <code>git daemon</code> service for your init system. The following steps are to be followed for <code>runit</code> based systems (Specifics might vary depending on your distribution):</p>
+<div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma">mkdir -p /etc/sv/git-daemon
+
+cat &gt; /etc/sv/git-daemon/run <span class="s">&lt;&lt; EOF
+</span><span class="s">#!/bin/sh
+</span><span class="s">
+</span><span class="s">. /etc/stagit/stagit.conf
+</span><span class="s">
+</span><span class="s"># Run `git daemon` as our `git` user (security).
+</span><span class="s">exec chpst -u git git daemon --base-path=&#34;\$GIT_HOME&#34;
+</span><span class="s">EOF</span>
+
+ln -s /run/runit/supervise.git-daemon /etc/sv/git-daemon/supervise
+ln -s /etc/sv/git-daemon /var/service/ <span class="c1"># Enable the service</span>
+</pre></td></tr></table>
+</div>
+<p>Finally, serve the generated pages through your web server. This should be enough for caddy users:</p>
+<div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><span class="lnt">1
+</span><span class="lnt">2
+</span></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma">root * /var/lib/git/home
+file_server
+</pre></td></tr></table>
+</div>
+<h2>Usage</h2>
+<p>Now that we have our scripts and daemons set up, we're gonna create our first repository and add some CSS!</p>
+<div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma">su - git
+stagit-new-repo hello-world
+
+# On the dev system:
+SSH_PORT=1234
+git clone &#34;ssh://git@git.mydomain.tld:$SSH_PORT/var/lib/git/repos/hello-world.git&#34;
+cd hello-world; echo &#34;# Hello&#34; &gt; README.md
+git add README.md; git commit -m &#34;Hello World!&#34;
+git push
+</pre></td></tr></table>
+</div>
+<p>CSS can be generated with the help of <code>chroma</code> itself, though you'll need to add regular CSS yourself. Here's an example for generating an emacs-themed CSS:</p>
+<div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><span class="lnt">1
+</span><span class="lnt">2
+</span></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma">. /etc/stagit/stagit.conf
+chroma --html-styles --style=emacs &gt; &#34;$WWW_HOME/style.css&#34;
+</pre></td></tr></table>
+</div>
+<p>When creating a new repository, <code>stagit-gen-index</code> should be run on the server <em>AFTER</em> pushing the first commit. Similarly, it must be run when a repository is deleted.</p>
+<p><strong>TIP:</strong> The value of <code>GIT_HOME</code> in <code>/etc/stagit/stagit.conf</code> can be changed to <code>/home/git</code> to shorten the cloning URL to <code>ssh://git@git.mydomain.tld:$SSH_PORT/~git/hello-world.git</code>.</p>
+<p>There you have it, a simple <code>git</code> server with a beautiful JS-free frontend! See mine in action <a href="https://git.git-bruh.duckdns.org">here</a>.</p>
+  </main>
+</body>
+
+</html>
