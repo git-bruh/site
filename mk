@@ -66,9 +66,6 @@ datefmt() {
 	printf "%s" "$DAY $MONTHNAME $YEAR"
 }
 
-# We use temporary files instead of storing buffers in variables as
-# the parent shell's variables cannot be accessed from a subshell.
-
 for markdown in $(find "$ROOT/blog/" -name "*.md" | sort -r); do
 	basename="$(basename "$markdown" .md)"
 
@@ -96,9 +93,6 @@ for markdown in $(find "$ROOT/blog/" -name "*.md" | sort -r); do
 	cmark-gfm "$markdown" $CMARK_ARGS > "$cmark_tmpfile"
 
 	grep -o "$FILE_REGEX" "$cmark_tmpfile" | while read -r file; do
-		# Temporary file to store the syntax highlighted HTML.
-		tmpfile="$(mktemp)"
-
 		# '<pre>{{include "/files/myfile"}}</pre>' -> '$ROOT/files/myfile'.
 		filepath="$ROOT/$(printf %s "$file" | grep -o '".*"' | tr -d \")"
 
@@ -107,12 +101,9 @@ for markdown in $(find "$ROOT/blog/" -name "*.md" | sort -r); do
 
 		# Word-splitting is intentional here.
 		# shellcheck disable=2086
-		chroma $CHROMA_ARGS < "$filepath" > "$tmpfile"
-
-		# Delete the "include" line and replace it with the contents of "$tmpfile".
-		sed -i -e "/$file/{r $tmpfile" -e "d;}" "$cmark_tmpfile"
-
-		rm -f "$tmpfile"
+		chroma $CHROMA_ARGS < "$filepath" |
+		# Replace the "include" line with the syntax-highlighted contents.
+		sed -i -e "/$file/{r /dev/stdin" -e "d;}" "$cmark_tmpfile"
 	done
 
 	# Add our boilerplate to the start and end of the file.
