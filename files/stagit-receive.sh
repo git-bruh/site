@@ -21,3 +21,5 @@ ln -sf log.html index.html
 for file in style.css logo.png; do
     ln -sf "../$file" "$file"
 done
+
+stagit-gen-index
