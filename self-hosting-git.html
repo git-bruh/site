@@ -43,7 +43,7 @@
 <td class="lntd">
 <pre tabindex="0" class="chroma">patch -p1 &lt; syntax-highlighting.patch
 
-make &amp;&amp; make install
+make <span class="o">&amp;&amp;</span> make install
 </pre></td></tr></table>
 </div>
 <p>Next, we're going to create a few helper scripts to save us some time. The scripts are taken from <a href="https://hosakacorp.net/p/stagit-server.html">this</a> article with some modifications made to them.</p>
@@ -58,12 +58,12 @@ make &amp;&amp; make install
 </span><span class="lnt">6
 </span></pre></td>
 <td class="lntd">
-<pre tabindex="0" class="chroma">GIT_HOME=&#34;/var/lib/git/repos&#34;
-WWW_HOME=&#34;/var/lib/git/home&#34;
-CLONE_URI=&#34;git://git.mydomain.tld&#34;
-DEFAULT_OWNER=&#34;username&#34;
-DEFAULT_DESCRIPTION=&#34;default description&#34;
-GIT_USER=&#34;git&#34;
+<pre tabindex="0" class="chroma"><span class="nv">GIT_HOME</span><span class="o">=</span><span class="s2">&#34;/var/lib/git/repos&#34;</span>
+<span class="nv">WWW_HOME</span><span class="o">=</span><span class="s2">&#34;/var/lib/git/home&#34;</span>
+<span class="nv">CLONE_URI</span><span class="o">=</span><span class="s2">&#34;git://git.mydomain.tld&#34;</span>
+<span class="nv">DEFAULT_OWNER</span><span class="o">=</span><span class="s2">&#34;username&#34;</span>
+<span class="nv">DEFAULT_DESCRIPTION</span><span class="o">=</span><span class="s2">&#34;default description&#34;</span>
+<span class="nv">GIT_USER</span><span class="o">=</span><span class="s2">&#34;git&#34;</span>
 </pre></td></tr></table>
 </div>
 <p><code>post-receive</code>: <code>git</code> hook for updating the repository's frontend (Placed in <code>/etc/stagit</code>).</p>
@@ -234,11 +234,11 @@ mkdir <span class="s2">&#34;</span><span class="nv">$WWW_HOME</span><span class=
 </span></pre></td>
 <td class="lntd">
 <pre tabindex="0" class="chroma">adduser git
-for dir in repos home; do mkdir -p &#34;/var/lib/git/$dir&#34;; done
+<span class="k">for</span> dir in repos home<span class="p">;</span> <span class="k">do</span> mkdir -p <span class="s2">&#34;/var/lib/git/</span><span class="nv">$dir</span><span class="s2">&#34;</span><span class="p">;</span> <span class="k">done</span>
 chown -R git:git /var/lib/git
 su - git
 mkdir -p ~/.ssh
-echo &#34;My public SSH key&#34; &gt;&gt; ~/.ssh/authorized_keys # For pushing to repos.
+<span class="nb">echo</span> <span class="s2">&#34;My public SSH key&#34;</span> &gt;&gt; ~/.ssh/authorized_keys <span class="c1"># For pushing to repos.</span>
 </pre></td></tr></table>
 </div>
 <p>Almost there, create a <code>git daemon</code> service for your init system. The following steps are to be followed for <code>runit</code> based systems (Specifics might vary depending on your distribution):</p>
@@ -303,11 +303,11 @@ file_server
 <pre tabindex="0" class="chroma">su - git
 stagit-new-repo hello-world
 
-# On the dev system:
-SSH_PORT=1234
-git clone &#34;ssh://git@git.mydomain.tld:$SSH_PORT/var/lib/git/repos/hello-world.git&#34;
-cd hello-world; echo &#34;# Hello&#34; &gt; README.md
-git add README.md; git commit -m &#34;Hello World!&#34;
+<span class="c1"># On the dev system:</span>
+<span class="nv">SSH_PORT</span><span class="o">=</span><span class="m">1234</span>
+git clone <span class="s2">&#34;ssh://git@git.mydomain.tld:</span><span class="nv">$SSH_PORT</span><span class="s2">/var/lib/git/repos/hello-world.git&#34;</span>
+<span class="nb">cd</span> hello-world<span class="p">;</span> <span class="nb">echo</span> <span class="s2">&#34;# Hello&#34;</span> &gt; README.md
+git add README.md<span class="p">;</span> git commit -m <span class="s2">&#34;Hello World!&#34;</span>
 git push
 </pre></td></tr></table>
 </div>
@@ -319,7 +319,7 @@ git push
 </span></pre></td>
 <td class="lntd">
 <pre tabindex="0" class="chroma">. /etc/stagit/stagit.conf
-chroma --html-styles --style=emacs &gt; &#34;$WWW_HOME/style.css&#34;
+chroma --html-styles --style<span class="o">=</span>emacs &gt; <span class="s2">&#34;</span><span class="nv">$WWW_HOME</span><span class="s2">/style.css&#34;</span>
 </pre></td></tr></table>
 </div>
 <p>When creating a new repository, <code>stagit-gen-index</code> should be run on the server <em>AFTER</em> pushing the first commit. Similarly, it must be run when a repository is deleted.</p>
