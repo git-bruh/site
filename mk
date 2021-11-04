@@ -2,19 +2,14 @@
 
 set -e
 
+TITLE="site"
 ROOT="${ROOT:-$(pwd)}"
 GENDIR="${1:-$ROOT/gen}"
-
 CMARK_ARGS="--unsafe"
 CHROMA_ARGS="--html --html-only --html-lines --html-lines-table"
-
 CHROMA_STYLE="github"
 
-DATE_REGEX=".*[0-9]"
-FILE_REGEX="<pre>{{include .*}}</pre>"
-
-POSTS=
-
+INDEX="$GENDIR/index.html"
 START='<!DOCTYPE html>
 <html lang=en>
   <head>
@@ -40,10 +35,8 @@ rm -rf "$GENDIR"
 mkdir -p "$GENDIR"
 
 datefmt() {
-	DATE="$1"
-
-	MONTHDAY="${DATE#*-}"
-	YEAR="${DATE%%-*}"
+	MONTHDAY="${1#*-}"
+	YEAR="${1%%-*}"
 	MONTH="${MONTHDAY%%-*}"
 	DAY="${MONTHDAY#*-}"
 
@@ -66,57 +59,60 @@ datefmt() {
 	printf "%s" "$DAY $MONTHNAME $YEAR"
 }
 
-for markdown in $(find "$ROOT/blog/" -name "*.md" | sort -r); do
-	basename="$(basename "$markdown" .md)"
+printf "%s" "$START" | sed "s/{{ title }}/$TITLE/" > "$INDEX"
+printf "\n    <table>\n" >> "$INDEX"
 
-	date="$(datefmt "$(printf %s "$basename" | grep -o "$DATE_REGEX")")"
+for markdown in "$ROOT/blog/"*.md; do
+	date="${markdown##*/}"
+	date="${date%%-[a-z]*}"
+	date="$(datefmt "$date")" # Extract date
+	basename="${markdown##*[0-9]-}" # Remove date
+	basename="${basename%%.md}" # Remove extension
 
-	basename="$(printf %s "$basename" | sed "s/$DATE_REGEX-//")"
-
-	# 'YYYY-MM-D-my-post' -> "My post"
+	# 'my-post' -> "My post"
 	title="$(printf %s "$basename" | awk -vFS= -vOFS= \
-		'{$1=toupper($1);gsub("-", " ");print $0}')"
+		'{$1=toupper($1);gsub("-", " "); print $0}')"
 
-	POSTS="$POSTS
-      <tr>
+	printf "%s\n" \
+      "<tr>
          <td align=\"left\" class=\"index-post\">
-            <a href=\"$basename.html\">$title</a>
+            <a href=\"${basename}.html\">${title}</a>
          </td>
-         <td align=\"right\" class=\"index-date\">$date</td>
-      </tr>"
+         <td align=\"right\" class=\"index-date\">${date}</td>
+      </tr>" >> "$INDEX"
 
-	# Temporary file to store the rendered markdown.
-	cmark_tmpfile="$(mktemp)"
+	post="$GENDIR/${basename}.html"
+
+	printf "%s" "$START" | sed "s/{{ title }}/$title/" > "$post"
+	printf "\n" >> "$post"
 
 	# Word-splitting is intentional here.
 	# shellcheck disable=2086
-	cmark-gfm "$markdown" $CMARK_ARGS > "$cmark_tmpfile"
+	cmark-gfm "$markdown" $CMARK_ARGS | while read -r line; do
+		case "$line" in
+			"<pre>{{include"*"}}</pre>")
+				filename="${line##* \"}" # Extract upto first quote
+				filename="$ROOT/${filename%%\"*}" # Remove everything after second quote
 
-	grep -o "$FILE_REGEX" "$cmark_tmpfile" | while read -r file; do
-		# '<pre>{{include "/files/myfile"}}</pre>' -> '$ROOT/files/myfile'.
-		filepath="$ROOT/$(printf %s "$file" | grep -o '".*"' | tr -d \")"
+				[ -f "$filename" ] || {
+					printf "File '%s' does not exist!\n" "$filename" >&2
+					return 1
+				}
 
-		# Escape the slashes so that we can use the line with `sed`.
-		file="$(printf %s "$file" | sed 's|/|\\/|g')"
+				# Word-splitting is intentional here
+				# shellcheck disable=2086
+				chroma $CHROMA_ARGS "$filename" >> "$post"
+				continue
+			;;
+		esac
 
-		# Word-splitting is intentional here.
-		# shellcheck disable=2086
-		chroma $CHROMA_ARGS < "$filepath" |
-		# Replace the "include" line with the syntax-highlighted contents.
-		sed -i -e "/$file/{r /dev/stdin" -e "d;}" "$cmark_tmpfile"
+		printf "%s\n" "$line" >> "$post"
 	done
 
-	# Add our boilerplate to the start and end of the file.
-	printf "%s\n" "$(printf %s "$START" | sed "s/{{ title }}/$title/")" \
-		   "$(cat "$cmark_tmpfile")" "$END" \
-		> "$GENDIR/$basename.html"
-
-	rm -f "$cmark_tmpfile"
+	printf "%s\n" "$END" >> "$post"
 done
 
-printf "%s\n" "$(printf %s "$START" | sed "s/{{ title }}/site/")" \
-	   "    <table>" "$POSTS" "    </table>" "$END" \
-	> "$GENDIR/index.html"
+printf "    </table>\n%s\n" "$END" >> "$INDEX"
 
 cp -f "$ROOT/favicon.png" "$ROOT/style.css" "$GENDIR"
 
