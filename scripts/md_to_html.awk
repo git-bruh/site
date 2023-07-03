@@ -5,7 +5,7 @@ BEGIN {
     # Declare an array
     delete CODEBLOCK_BUFFERS[0]
 
-    TOOL = "cmark-gfm --unsafe"
+    TOOL = "cmark-gfm --unsafe -e strikethrough"
 }
 
 # ```, ```py, ```PY, ...
