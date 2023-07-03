@@ -14,6 +14,9 @@ BEGIN {
 
     if (IN_CODEBLOCK) {
         print sprintf("<pre>%d</pre>", CODEBLOCK_COUNT) |& TOOL
+
+        lang = substr($0, 4)
+        CODEBLOCK_BUFFERS[CODEBLOCK_COUNT,(IN_CODEBLOCK++ - 1)] = lang
     } else {
         CODEBLOCK_COUNT++
     }
@@ -36,10 +39,14 @@ END {
 
     while ((TOOL |& getline HTML_LINE) > 0) {
         if ((match (HTML_LINE, /<pre>([0-9]+)<\/pre>/, matches)) > 0) {
-            cmd = "chroma --html --html-only --html-lines --html-lines-table"
             block_number = matches[1]
 
-            for (j = 0; (block_number, j) in CODEBLOCK_BUFFERS; j++) {
+            lang = CODEBLOCK_BUFFERS[block_number, 0]
+            lang = length(lang) > 0 ? lang : "autodetect"
+
+            cmd = sprintf("chroma --html --html-only --html-lines --html-lines-table --lexer=\"%s\"", lang)
+
+            for (j = 1; (block_number, j) in CODEBLOCK_BUFFERS; j++) {
                 print CODEBLOCK_BUFFERS[block_number, j] | cmd
             }
 
