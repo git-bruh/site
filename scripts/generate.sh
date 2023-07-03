@@ -143,6 +143,8 @@ main() {
         "$ASSETS_DIR/favicon.png" \
         "$ASSETS_DIR/style.css" \
         "$GENDIR/"
+
+    cat "$ASSETS_DIR/chroma.css" >> "$GENDIR/style.css"
 }
 
 main

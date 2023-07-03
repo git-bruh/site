@@ -13,7 +13,7 @@ BEGIN {
     IN_CODEBLOCK = !IN_CODEBLOCK
 
     if (IN_CODEBLOCK) {
-        print sprintf("<codeblock>%d</codeblock>", CODEBLOCK_COUNT) |& TOOL
+        print sprintf("<pre>%d</pre>", CODEBLOCK_COUNT) |& TOOL
     } else {
         CODEBLOCK_COUNT++
     }
@@ -35,14 +35,12 @@ END {
     delete matches[0]
 
     while ((TOOL |& getline HTML_LINE) > 0) {
-        if ((match (HTML_LINE, /<codeblock>([0-9]+)<\/codeblock>/, matches)) > 0) {
+        if ((match (HTML_LINE, /<pre>([0-9]+)<\/pre>/, matches)) > 0) {
             cmd = "chroma --html --html-only --html-lines --html-lines-table"
             block_number = matches[1]
 
-            for (i = block_number; (i, 0) in CODEBLOCK_BUFFERS; i++) {
-                for (j = 0; (i, j) in CODEBLOCK_BUFFERS; j++) {
-                    print CODEBLOCK_BUFFERS[i, j] | cmd
-                }
+            for (j = 0; (block_number, j) in CODEBLOCK_BUFFERS; j++) {
+                print CODEBLOCK_BUFFERS[block_number, j] | cmd
             }
 
             close(cmd)
