@@ -35,68 +35,18 @@
 <p>Apply the patch and build <code>stagit</code>:</p>
 </li>
 </ul>
-<div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre class="chroma"><span class="lnt">1
-</span><span class="lnt">2
-</span><span class="lnt">3
-</span></pre></td>
-<td class="lntd">
 <pre class="chroma"><code><span class="line"><span class="cl">patch -p1 &lt; syntax-highlighting.patch
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">make <span class="o">&amp;&amp;</span> make install
-</span></span></code></pre></td></tr></table>
-</div>
-<p>Next, we're going to create a few helper scripts to save us some time. The scripts are taken from <a href="https://hosakacorp.net/p/stagit-server.html">this</a> article with some modifications made to them.</p>
+</span></span></code></pre><p>Next, we're going to create a few helper scripts to save us some time. The scripts are taken from <a href="https://hosakacorp.net/p/stagit-server.html">this</a> article with some modifications made to them.</p>
 <p>Create a basic config file at <code>/etc/stagit/stagit.conf</code>:</p>
-<div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre class="chroma"><span class="lnt">1
-</span><span class="lnt">2
-</span><span class="lnt">3
-</span><span class="lnt">4
-</span><span class="lnt">5
-</span><span class="lnt">6
-</span></pre></td>
-<td class="lntd">
 <pre class="chroma"><code><span class="line"><span class="cl"><span class="nv">GIT_HOME</span><span class="o">=</span><span class="s2">&#34;/var/lib/git/repos&#34;</span>
 </span></span><span class="line"><span class="cl"><span class="nv">WWW_HOME</span><span class="o">=</span><span class="s2">&#34;/var/lib/git/home&#34;</span>
 </span></span><span class="line"><span class="cl"><span class="nv">CLONE_URI</span><span class="o">=</span><span class="s2">&#34;git://git.mydomain.tld&#34;</span>
 </span></span><span class="line"><span class="cl"><span class="nv">DEFAULT_OWNER</span><span class="o">=</span><span class="s2">&#34;username&#34;</span>
 </span></span><span class="line"><span class="cl"><span class="nv">DEFAULT_DESCRIPTION</span><span class="o">=</span><span class="s2">&#34;default description&#34;</span>
 </span></span><span class="line"><span class="cl"><span class="nv">GIT_USER</span><span class="o">=</span><span class="s2">&#34;git&#34;</span>
-</span></span></code></pre></td></tr></table>
-</div>
-<p><code>post-receive</code>: <code>git</code> hook for updating the repository's frontend (Placed in <code>/etc/stagit</code>).</p>
-<div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre class="chroma"><span class="lnt"> 1
-</span><span class="lnt"> 2
-</span><span class="lnt"> 3
-</span><span class="lnt"> 4
-</span><span class="lnt"> 5
-</span><span class="lnt"> 6
-</span><span class="lnt"> 7
-</span><span class="lnt"> 8
-</span><span class="lnt"> 9
-</span><span class="lnt">10
-</span><span class="lnt">11
-</span><span class="lnt">12
-</span><span class="lnt">13
-</span><span class="lnt">14
-</span><span class="lnt">15
-</span><span class="lnt">16
-</span><span class="lnt">17
-</span><span class="lnt">18
-</span><span class="lnt">19
-</span><span class="lnt">20
-</span><span class="lnt">21
-</span><span class="lnt">22
-</span><span class="lnt">23
-</span><span class="lnt">24
-</span><span class="lnt">25
-</span></pre></td>
-<td class="lntd">
+</span></span></code></pre><p><code>post-receive</code>: <code>git</code> hook for updating the repository's frontend (Placed in <code>/etc/stagit</code>).</p>
 <pre class="chroma"><code><span class="line"><span class="cl"><span class="cp">#!/bin/sh
 </span></span></span><span class="line"><span class="cl"><span class="cp"></span>
 </span></span><span class="line"><span class="cl"><span class="c1"># Fail if an unset variable is referenced (bad config).</span>
@@ -122,22 +72,8 @@
 </span></span><span class="line"><span class="cl"><span class="k">done</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">stagit-gen-index
-</span></span></code></pre></td></tr></table>
-</div>
-<p>Place the following scripts somewhere in <code>PATH</code>:</p>
+</span></span></code></pre><p>Place the following scripts somewhere in <code>PATH</code>:</p>
 <p><code>stagit-gen-index</code>: Updating the repository index when creating a new repo.</p>
-<div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre class="chroma"><span class="lnt">1
-</span><span class="lnt">2
-</span><span class="lnt">3
-</span><span class="lnt">4
-</span><span class="lnt">5
-</span><span class="lnt">6
-</span><span class="lnt">7
-</span><span class="lnt">8
-</span></pre></td>
-<td class="lntd">
 <pre class="chroma"><code><span class="line"><span class="cl"><span class="cp">#!/bin/sh
 </span></span></span><span class="line"><span class="cl"><span class="cp"></span>
 </span></span><span class="line"><span class="cl"><span class="c1"># Fail if an unset variable is referenced (bad config).</span>
@@ -146,47 +82,7 @@
 </span></span><span class="line"><span class="cl">. /etc/stagit/stagit.conf
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">stagit-index <span class="s2">&#34;</span><span class="nv">$GIT_HOME</span><span class="s2">&#34;</span>/*.git &gt; <span class="s2">&#34;</span><span class="nv">$WWW_HOME</span><span class="s2">/index.html&#34;</span>
-</span></span></code></pre></td></tr></table>
-</div>
-<p><code>stagit-new-repo</code>: Creating a new repository with some boilerplate.</p>
-<div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre class="chroma"><span class="lnt"> 1
-</span><span class="lnt"> 2
-</span><span class="lnt"> 3
-</span><span class="lnt"> 4
-</span><span class="lnt"> 5
-</span><span class="lnt"> 6
-</span><span class="lnt"> 7
-</span><span class="lnt"> 8
-</span><span class="lnt"> 9
-</span><span class="lnt">10
-</span><span class="lnt">11
-</span><span class="lnt">12
-</span><span class="lnt">13
-</span><span class="lnt">14
-</span><span class="lnt">15
-</span><span class="lnt">16
-</span><span class="lnt">17
-</span><span class="lnt">18
-</span><span class="lnt">19
-</span><span class="lnt">20
-</span><span class="lnt">21
-</span><span class="lnt">22
-</span><span class="lnt">23
-</span><span class="lnt">24
-</span><span class="lnt">25
-</span><span class="lnt">26
-</span><span class="lnt">27
-</span><span class="lnt">28
-</span><span class="lnt">29
-</span><span class="lnt">30
-</span><span class="lnt">31
-</span><span class="lnt">32
-</span><span class="lnt">33
-</span><span class="lnt">34
-</span></pre></td>
-<td class="lntd">
+</span></span></code></pre><p><code>stagit-new-repo</code>: Creating a new repository with some boilerplate.</p>
 <pre class="chroma"><code><span class="line"><span class="cl"><span class="cp">#!/bin/sh
 </span></span></span><span class="line"><span class="cl"><span class="cp"></span>
 </span></span><span class="line"><span class="cl"><span class="c1"># Fail if an unset variable is referenced (bad config).</span>
@@ -221,45 +117,14 @@
 </span></span><span class="line"><span class="cl"><span class="nb">echo</span> <span class="s2">&#34;</span><span class="nv">$DESC</span><span class="s2">&#34;</span> &gt; <span class="s2">&#34;</span><span class="nv">$GIT_HOME</span><span class="s2">/</span><span class="nv">$REPO</span><span class="s2">.git/description&#34;</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">mkdir <span class="s2">&#34;</span><span class="nv">$WWW_HOME</span><span class="s2">/</span><span class="nv">$REPO</span><span class="s2">&#34;</span>
-</span></span></code></pre></td></tr></table>
-</div>
-<p>Now set up a separate user to serve our repositories:</p>
-<div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre class="chroma"><span class="lnt">1
-</span><span class="lnt">2
-</span><span class="lnt">3
-</span><span class="lnt">4
-</span><span class="lnt">5
-</span><span class="lnt">6
-</span></pre></td>
-<td class="lntd">
+</span></span></code></pre><p>Now set up a separate user to serve our repositories:</p>
 <pre class="chroma"><code><span class="line"><span class="cl">adduser git
 </span></span><span class="line"><span class="cl"><span class="k">for</span> dir in repos home<span class="p">;</span> <span class="k">do</span> mkdir -p <span class="s2">&#34;/var/lib/git/</span><span class="nv">$dir</span><span class="s2">&#34;</span><span class="p">;</span> <span class="k">done</span>
 </span></span><span class="line"><span class="cl">chown -R git:git /var/lib/git
 </span></span><span class="line"><span class="cl">su - git
 </span></span><span class="line"><span class="cl">mkdir -p ~/.ssh
 </span></span><span class="line"><span class="cl"><span class="nb">echo</span> <span class="s2">&#34;My public SSH key&#34;</span> &gt;&gt; ~/.ssh/authorized_keys <span class="c1"># For pushing to repos.</span>
-</span></span></code></pre></td></tr></table>
-</div>
-<p>Almost there, create a <code>git daemon</code> service for your init system. The following steps are to be followed for <code>runit</code> based systems (Specifics might vary depending on your distribution):</p>
-<div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre class="chroma"><span class="lnt"> 1
-</span><span class="lnt"> 2
-</span><span class="lnt"> 3
-</span><span class="lnt"> 4
-</span><span class="lnt"> 5
-</span><span class="lnt"> 6
-</span><span class="lnt"> 7
-</span><span class="lnt"> 8
-</span><span class="lnt"> 9
-</span><span class="lnt">10
-</span><span class="lnt">11
-</span><span class="lnt">12
-</span><span class="lnt">13
-</span></pre></td>
-<td class="lntd">
+</span></span></code></pre><p>Almost there, create a <code>git daemon</code> service for your init system. The following steps are to be followed for <code>runit</code> based systems (Specifics might vary depending on your distribution):</p>
 <pre class="chroma"><code><span class="line"><span class="cl">mkdir -p /etc/sv/git-daemon
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">cat &gt; /etc/sv/git-daemon/run <span class="s">&lt;&lt; EOF
@@ -273,34 +138,11 @@
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">ln -s /run/runit/supervise.git-daemon /etc/sv/git-daemon/supervise
 </span></span><span class="line"><span class="cl">ln -s /etc/sv/git-daemon /var/service/ <span class="c1"># Enable the service</span>
-</span></span></code></pre></td></tr></table>
-</div>
-<p>Finally, serve the generated pages through your web server. This should be enough for caddy users:</p>
-<div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre class="chroma"><span class="lnt">1
-</span><span class="lnt">2
-</span></pre></td>
-<td class="lntd">
+</span></span></code></pre><p>Finally, serve the generated pages through your web server. This should be enough for caddy users:</p>
 <pre class="chroma"><code><span class="line"><span class="cl">root * /var/lib/git/home
 </span></span><span class="line"><span class="cl">file_server
-</span></span></code></pre></td></tr></table>
-</div>
-<h2>Usage</h2>
+</span></span></code></pre><h2>Usage</h2>
 <p>Now that we have our scripts and daemons set up, we're gonna create our first repository and add some CSS!</p>
-<div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre class="chroma"><span class="lnt">1
-</span><span class="lnt">2
-</span><span class="lnt">3
-</span><span class="lnt">4
-</span><span class="lnt">5
-</span><span class="lnt">6
-</span><span class="lnt">7
-</span><span class="lnt">8
-</span><span class="lnt">9
-</span></pre></td>
-<td class="lntd">
 <pre class="chroma"><code><span class="line"><span class="cl">su - git
 </span></span><span class="line"><span class="cl">stagit-new-repo hello-world
 </span></span><span class="line"><span class="cl">
@@ -310,20 +152,10 @@
 </span></span><span class="line"><span class="cl"><span class="nb">cd</span> hello-world<span class="p">;</span> <span class="nb">echo</span> <span class="s2">&#34;# Hello&#34;</span> &gt; README.md
 </span></span><span class="line"><span class="cl">git add README.md<span class="p">;</span> git commit -m <span class="s2">&#34;Hello World!&#34;</span>
 </span></span><span class="line"><span class="cl">git push
-</span></span></code></pre></td></tr></table>
-</div>
-<p>CSS can be generated with the help of <code>chroma</code> itself, though you'll need to add regular CSS yourself. Here's an example for generating an emacs-themed CSS:</p>
-<div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre class="chroma"><span class="lnt">1
-</span><span class="lnt">2
-</span></pre></td>
-<td class="lntd">
+</span></span></code></pre><p>CSS can be generated with the help of <code>chroma</code> itself, though you'll need to add regular CSS yourself. Here's an example for generating an emacs-themed CSS:</p>
 <pre class="chroma"><code><span class="line"><span class="cl">. /etc/stagit/stagit.conf
 </span></span><span class="line"><span class="cl">chroma --html-styles --style<span class="o">=</span>emacs &gt; <span class="s2">&#34;</span><span class="nv">$WWW_HOME</span><span class="s2">/style.css&#34;</span>
-</span></span></code></pre></td></tr></table>
-</div>
-<p>When creating a new repository, <code>stagit-gen-index</code> should be run on the server <em>AFTER</em> pushing the first commit. Similarly, it must be run when a repository is deleted.</p>
+</span></span></code></pre><p>When creating a new repository, <code>stagit-gen-index</code> should be run on the server <em>AFTER</em> pushing the first commit. Similarly, it must be run when a repository is deleted.</p>
 <p><strong>TIP:</strong> The value of <code>GIT_HOME</code> in <code>/etc/stagit/stagit.conf</code> can be changed to <code>/home/git</code> to shorten the cloning URL to <code>ssh://git@git.mydomain.tld:$SSH_PORT/~git/hello-world.git</code>.</p>
 <p>There you have it, a simple <code>git</code> server with a beautiful JS-free frontend! <del>See mine in action <a href="">here</a>.</del></p>
     </main>
