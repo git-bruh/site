@@ -1,28 +1,49 @@
 :root {
-  --bg-color: #121212;
-  --text-color: white;
-  --light-gray: #eeeeee;
+  --bg: #020202;
+  --fg: #cdd6f4;
+  --scrollbar: #6c7086;
+  --links: #b4befe;
 }
 
-a, body {
-  background: var(--bg-color);
-  color: var(--text-color);
+::-webkit-scrollbar {
+  background: var(--bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar);
+}
+
+::-webkit-scrollbar-corner {
+  background: var(--bg);
 }
 
 body {
-  padding: 0 1em;
-  max-width: 800px;
+  background: var(--bg);
+  color: var(--fg);
 }
 
-header * {
+a {
+  color: var(--links);
+  word-wrap: break-word;
+}
+
+main {
+  padding: 0;
+  line-height: 150%;
+}
+
+body {
+  max-width: 900px;
+  padding: 0 14px;
+  margin: 40px auto;
+}
+
+header a {
   text-decoration: none;
 }
 
-header nav a {
-  margin-right: 0.5em;
-}
-
 table {
+  table-layout: fixed;
   width: 100%
 }
 
@@ -34,7 +55,23 @@ table a:hover {
   text-decoration: underline
 }
 
+pre {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 10px;
+  min-width: 0;
+  margin-bottom: 10px;
+}
+
+code {
+  font-size: 0.9rem;
+  word-wrap: break-word;
+}
+
 .index-date, .index-post {
   padding-top: 20px;
-  color: var(--light-gray)
 }
+
+/* TODO
+ * a, a:hover
+ */

@@ -44,7 +44,7 @@ END {
             lang = CODEBLOCK_BUFFERS[block_number, 0]
             lang = length(lang) > 0 ? lang : "autodetect"
 
-            cmd = sprintf("chroma --html --html-only --html-lines --html-lines-table --lexer=\"%s\"", lang)
+            cmd = sprintf("chroma --html --html-only --lexer=\"%s\"", lang)
 
             for (j = 1; (block_number, j) in CODEBLOCK_BUFFERS; j++) {
                 print CODEBLOCK_BUFFERS[block_number, j] | cmd
