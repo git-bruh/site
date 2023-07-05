@@ -3,6 +3,8 @@
   --fg: #cdd6f4;
   --scrollbar: #6c7086;
   --links: #b4befe;
+  --links-light: #585b70;
+  --links-dark: #45475a;
 }
 
 ::-webkit-scrollbar {
@@ -25,6 +27,12 @@ body {
 a {
   color: var(--links);
   word-wrap: break-word;
+  text-decoration: none;
+  border-bottom: 1.5px solid var(--links-dark);
+}
+
+a:hover {
+  border-bottom: 1.5px solid var(--links-light);
 }
 
 main {
@@ -33,13 +41,9 @@ main {
 }
 
 body {
-  max-width: 900px;
+  max-width: 700px;
   padding: 0 14px;
   margin: 40px auto;
-}
-
-header a {
-  text-decoration: none;
 }
 
 table {
@@ -47,25 +51,24 @@ table {
   width: 100%
 }
 
-table a {
-  text-decoration: none;
-}
-
-table a:hover {
-  text-decoration: underline
-}
-
 pre {
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 10px;
   min-width: 0;
-  margin-bottom: 10px;
 }
 
-code {
+code:not(h2 code) {
   font-size: 0.9rem;
   word-wrap: break-word;
+}
+
+code:not(pre code) {
+  font-weight: 550;
+}
+
+pre code {
+  margin: 12px;
+  display: inline-block;
 }
 
 .index-date, .index-post {

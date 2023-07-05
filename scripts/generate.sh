@@ -99,7 +99,7 @@ gen_page() {
   <body>
     <header>
       <nav>
-        <a href=/>[Home]</a>
+        <a href=/>home</a>
       </nav>
     </header>
     <main>
