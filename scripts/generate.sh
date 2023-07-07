@@ -71,10 +71,10 @@ gen_table_elements() {
 
         cat <<EOF
 <tr>
-  <td align="left" class="index-post">
+  <td align="left">
     <a href="${basename}.html">${title}</a>
   </td>
-  <td align="right" class="index-date">
+  <td align="right">
     ${date}
   </td>
 </tr>
@@ -97,12 +97,12 @@ gen_page() {
   </head>
 
   <body>
-    <header>
-      <nav>
-        <a href=/>home</a>
-      </nav>
-    </header>
     <main>
+      <nav>
+        <ul>
+          <li><a href=/>home</a></li>
+        </ul>
+      </nav>
 $(cat /dev/stdin)
     </main>
   </body>
@@ -125,7 +125,9 @@ gen_blog_page() {
     title="$(get_md_title "$markdown")"
 
     gen_page "$title" > "$GENDIR/${basename}.html" <<EOF
+<article align="left">
 $(gawk -f "$MD_TO_HTML_AWK" < "$markdown")
+</article>
 EOF
 }
 
