@@ -101,6 +101,7 @@ gen_page() {
       <nav>
         <ul>
           <li><a href=/>home</a></li>
+          <li><a href=/cv.pdf>cv</a></li>
         </ul>
       </nav>
 $(cat /dev/stdin)
@@ -141,12 +142,10 @@ main() {
         gen_blog_page "$markdown"
     done
 
-    cp -f \
-        "$ASSETS_DIR/favicon.png" \
-        "$ASSETS_DIR/style.css" \
-        "$GENDIR/"
+    cp -f "$ASSETS_DIR"/* "$GENDIR/"
 
-    cat "$ASSETS_DIR/chroma.css" >> "$GENDIR/style.css"
+    cat "$GENDIR/chroma.css" >> "$GENDIR/style.css"
+    rm -f "$GENDIR/chroma.css"
 }
 
 main
