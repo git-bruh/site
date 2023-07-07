@@ -24,6 +24,21 @@ body {
   color: var(--fg);
 }
 
+nav {
+  padding-bottom: 20px;
+}
+
+nav ul {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+nav ul li {
+  padding-right: 10px;
+  display: inline-block;
+}
+
 a {
   color: var(--links);
   word-wrap: break-word;
@@ -48,7 +63,13 @@ body {
 
 table {
   table-layout: fixed;
-  width: 100%
+  width: 100%;
+  border-collapse: collapse;
+}
+
+td {
+  padding: 0;
+  margin: 0;
 }
 
 pre {
@@ -69,10 +90,6 @@ code:not(pre code) {
 pre code {
   margin: 12px;
   display: inline-block;
-}
-
-.index-date, .index-post {
-  padding-top: 20px;
 }
 
 /* TODO

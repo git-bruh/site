@@ -9,12 +9,14 @@
   </head>
 
   <body>
-    <header>
-      <nav>
-        <a href=/>home</a>
-      </nav>
-    </header>
     <main>
+      <nav>
+        <ul>
+          <li><a href=/>home</a></li>
+          <li><a href=/cv.pdf>cv</a></li>
+        </ul>
+      </nav>
+<article align="left">
 <h2>Self hosting <code>git</code></h2>
 <p>In this post, I'll walk you through the steps for setting up a simple <code>git</code> server. We'll be using <code>git daemon</code> to serve our repositories, and <code>stagit</code> for the frontend.</p>
 <h2>Requirements</h2>
@@ -158,6 +160,7 @@
 </span></span></code></pre><p>When creating a new repository, <code>stagit-gen-index</code> should be run on the server <em>AFTER</em> pushing the first commit. Similarly, it must be run when a repository is deleted.</p>
 <p><strong>TIP:</strong> The value of <code>GIT_HOME</code> in <code>/etc/stagit/stagit.conf</code> can be changed to <code>/home/git</code> to shorten the cloning URL to <code>ssh://git@git.mydomain.tld:$SSH_PORT/~git/hello-world.git</code>.</p>
 <p>There you have it, a simple <code>git</code> server with a beautiful JS-free frontend! <del>See mine in action <a href="">here</a>.</del></p>
+</article>
     </main>
   </body>
 </html>
