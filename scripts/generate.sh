@@ -64,7 +64,7 @@ get_md_title() {
 }
 
 gen_table_elements() {
-    for markdown in "$BLOGDIR"/*.md; do
+    for markdown in $(printf '%s\n' "$BLOGDIR"/*.md | sort -ru); do
         date="$(get_md_date "$markdown")"
         basename="$(get_md_basename "$markdown")"
         title="$(get_md_title "$markdown")"
