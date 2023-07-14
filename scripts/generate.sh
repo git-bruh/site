@@ -39,35 +39,37 @@ datefmt() {
 }
 
 get_md_basename() {
-    markdown="$1"
-
-    basename="${markdown##*[0-9]-}" # Remove date
-    basename="${basename%%.md}" # Remove extension
-
-    printf '%s\n' "$basename"
+    printf '%s\n' "${1##*/}"
 }
 
 get_md_date() {
-    markdown="$1"
-
-    date="${markdown##*/}"
-    date="${date%%-[a-z]*}"
-    date="$(datefmt "$date")"
-
-    printf '%s\n' "$date"
+    dir="${1##*/}"
+    printf '%s\n' "$(datefmt "$dir")"
 }
 
 get_md_title() {
-    get_md_basename "$1" |
-      tr '-' ' ' |
-      awk '{for (j = 1; j <= NF; j++) { $j = toupper(substr($j,1,1)) substr($j,2) }}1'
+    cat "$1/title"
+}
+
+sanitize_quotes() {
+    sed 's/"/\&quot;/g' < "$1"
+}
+
+gen_og_tags() {
+    og_title="$(sanitize_quotes "$1/title")"
+    og_description="$(sanitize_quotes "$1/description")"
+cat <<EOF
+<meta property="og:type" content="article" />
+<meta property="og:title" content="$og_title" />
+<meta property="og:description" content="$og_description" />
+EOF
 }
 
 gen_table_elements() {
-    for markdown in $(printf '%s\n' "$BLOGDIR"/*.md | sort -ru); do
-        date="$(get_md_date "$markdown")"
-        basename="$(get_md_basename "$markdown")"
-        title="$(get_md_title "$markdown")"
+    for page in $(printf '%s\n' "$BLOGDIR"/* | sort -ru); do
+        date="$(get_md_date "$page")"
+        basename="$(get_md_basename "$page")"
+        title="$(get_md_title "$page")"
 
         cat <<EOF
 <tr>
@@ -84,6 +86,7 @@ EOF
 
 gen_page() {
     title="$1"
+    og_tags="${2:-}"
 
     cat <<EOF
 <!DOCTYPE html>
@@ -94,6 +97,7 @@ gen_page() {
     <link rel="icon" type="image/png" sizes="64x64" href="${SITE_FAVICON}">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    ${og_tags}
   </head>
 
   <body>
@@ -102,6 +106,8 @@ gen_page() {
         <ul>
           <li><a href=/>home</a></li>
           <li><a href=/cv.pdf>cv</a></li>
+          <li><a href=https://github.com/git-bruh>github</a></li>
+          <li><a href=https://twitter.com/git_bruh>twitter</a></li>
         </ul>
       </nav>
 $(cat /dev/stdin)
@@ -120,14 +126,14 @@ EOF
 }
 
 gen_blog_page() {
-    markdown="$1"
+    page="$1"
 
-    basename="$(get_md_basename "$markdown")"
-    title="$(get_md_title "$markdown")"
+    basename="$(get_md_basename "$page")"
+    title="$(get_md_title "$page")"
 
-    gen_page "$title" > "$GENDIR/${basename}.html" <<EOF
+    gen_page "$title" "$(gen_og_tags "$page")" > "$GENDIR/${basename}.html" <<EOF
 <article align="left">
-$(gawk -f "$MD_TO_HTML_AWK" < "$markdown")
+$(gawk -f "$MD_TO_HTML_AWK" < "$page/blog.md")
 </article>
 EOF
 }
@@ -138,8 +144,8 @@ main() {
 
     gen_main_page
 
-    for markdown in "$BLOGDIR"/*.md; do
-        gen_blog_page "$markdown"
+    for post in "$BLOGDIR"/*; do
+        gen_blog_page "$post"
     done
 
     cp -f "$ASSETS_DIR"/* "$GENDIR/"

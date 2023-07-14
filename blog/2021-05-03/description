@@ -1,0 +1,1 @@
+In this post, I'll walk you through the steps for setting up a simple `git` server. We'll be using `git daemon` to serve our repositories, and `stagit` for the frontend.

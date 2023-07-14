@@ -1,0 +1,1 @@
+In this post, I'll go over how basic Linux init systems work by explaining all the stuff that happens during the boot process - right from the kernel image being loaded to the user being dropped to a TTY.
