@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang=en>
+  <head>
+    <title>A Basic Init System Setup</title>
+    <link rel="stylesheet" href="style.css" type="text/css">
+    <link rel="icon" type="image/png" sizes="64x64" href="favicon.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta property="og:type" content="article" />
+<meta property="og:title" content="A Basic Init System Setup" />
+<meta property="og:description" content="In this post, I'll go over how basic Linux init systems work by explaining all the stuff that happens during the boot process - right from the kernel image being loaded to the user being dropped to a TTY." />
+  </head>
+
+  <body>
+    <main>
+      <nav>
+        <ul>
+          <li><a href=/>home</a></li>
+          <li><a href=/cv.pdf>cv</a></li>
+          <li><a href=https://github.com/git-bruh>github</a></li>
+          <li><a href=https://twitter.com/git_bruh>twitter</a></li>
+        </ul>
+      </nav>
+<article align="left">
+<h1>A Basic Init System Setup</h1>
+<p>In this post, I'll go over how basic Linux init systems work by explaining all the stuff that happens during the boot process - right from the kernel image being loaded to the user being dropped to a TTY.</p>
+<p><strong>NOTE:</strong> You can use the scripts present in <a href="https://github.com/git-bruh/git-bruh.github.io/tree/master/code/init">this</a> repo to perform all the tasks described here rather than doing them by hand, see the <code>README.md</code> for more information.</p>
+<h2><code>runit</code></h2>
+<p>We'll be using <code>runit</code> (the traditional init system of choice for minimalist folks) for this purpose as it has very few moving parts, making the whole ordeal easier to understand.</p>
+<p>An init system has a few basic tasks to perform, which can conceptually be organized into &quot;stages&quot;:</p>
+<ul>
+<li>
+<p>Stage 1 is the initialization phase wherein the core, one-time initialization tasks are performed, which include mounting pseudo-filesystems like <code>/dev</code>, setting up device nodes nodes, mounting filesystems defined in <code>/etc/fstab</code>, and so on.</p>
+</li>
+<li>
+<p>Stage 2 refers to the actual spawning of system services/daemons by the service manager, which further exposes interfaces to users to manage said services</p>
+</li>
+<li>
+<p>Stage 3 is when all the services are stopped and the system shuts down</p>
+</li>
+</ul>
+<p>In <code>runit</code>, there's two main components (or binaries) involved in executing all these stages:</p>
+<ul>
+<li>
+<p><a href="http://smarden.org/runit/runit.8.html"><code>runit</code></a>: The binary that's executed by the kernel as PID 1. It is responsible for kickstarting the whole boot process; from running the stage 1 scripts to handling poweroff/reboot (i.e. stage 3) commands.</p>
+</li>
+<li>
+<p><a href="http://smarden.org/runit/runsvdir.8.html"><code>runsvdir</code></a>: This is responsible for actually spawning the long-running services we define. Said services are managed using the <a href="http://smarden.org/runit/sv.8.html"><code>sv</code></a> command.</p>
+</li>
+</ul>
+<p>Note that we'll be using <code>busybox</code>'s <code>runit</code> implementation in this post since that's what I've been using so far, so the linked docs <em>might</em> not match up 1:1 in all the cases, but the main ideas hold.</p>
+<h2>Creating The Rootfs</h2>
+<p>Now we'll work our way up to a bootable system that uses <code>busybox</code> for it's coreutils as well as the <code>runit</code> implementation. Note that we're limiting this system's scope quite a bit, so it's only going to be capable of logging in as a user and supervising a long running daemon.</p>
+<p>First we'll create a minimal rootfs. It's quite easy; all you need is a <code>busybox</code> build and boom, you have <code>runit</code> and the necessary coreutils. Moreover, we'll be doing a fully static build of busybox so we don't even need a C library in the rootfs!</p>
+<pre class="chroma"><code><span class="line"><span class="cl"><span class="c1"># The rootfs will be created at this path</span>
+</span></span><span class="line"><span class="cl"><span class="nv">MY_ROOTFS</span><span class="o">=</span><span class="s2">&#34;</span><span class="nv">$PWD</span><span class="s2">/rootfs&#34;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># Downloading sources</span>
+</span></span><span class="line"><span class="cl">curl -LO https://busybox.net/downloads/busybox-1.36.1.tar.bz2
+</span></span><span class="line"><span class="cl">tar xf busybox-1.36.1.tar.bz2
+</span></span><span class="line"><span class="cl"><span class="nb">cd</span> busybox-1.36.1
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># Use the default configuration that includes the necessary stuff</span>
+</span></span><span class="line"><span class="cl">make defconfig
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># Enable the static build</span>
+</span></span><span class="line"><span class="cl">sed -i <span class="s1">&#39;s/^# CONFIG_STATIC.*/CONFIG_STATIC=y/&#39;</span> .config
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># Only look for services in /etc/runit/sv</span>
+</span></span><span class="line"><span class="cl">sed -i <span class="s1">&#39;s|/var/service|/etc/runit/sv|&#39;</span> .config
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># Build using all the cores on the system</span>
+</span></span><span class="line"><span class="cl">make -j<span class="s2">&#34;</span><span class="k">$(</span>nproc<span class="k">)</span><span class="s2">&#34;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># Install it to the rootfs directory</span>
+</span></span><span class="line"><span class="cl">make <span class="nv">CONFIG_PREFIX</span><span class="o">=</span><span class="s2">&#34;</span><span class="nv">$MY_ROOTFS</span><span class="s2">&#34;</span> install
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="nb">cd</span> ..
+</span></span></code></pre><p>We'll also create empty dirs for the pseudo-filesystems to be mounted upon and some skeleton files required for various coreutils (such as <code>ls</code>) to recognize the current user/group properly (via the <a href="https://www.man7.org/linux/man-pages/man3/getpwnam.3.html"><code>getpw{nam,uid}*</code></a> and similar families of functions):</p>
+<pre class="chroma"><code><span class="line"><span class="cl"><span class="nv">MY_ROOTFS</span><span class="o">=</span><span class="s2">&#34;</span><span class="nv">$PWD</span><span class="s2">/rootfs&#34;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># Dirs for mounting pseudo-filesystems</span>
+</span></span><span class="line"><span class="cl"><span class="k">for</span> dir in dev sys proc tmp<span class="p">;</span> <span class="k">do</span>
+</span></span><span class="line"><span class="cl">    mkdir <span class="s2">&#34;</span><span class="nv">$MY_ROOTFS</span><span class="s2">/</span><span class="nv">$dir</span><span class="s2">&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="k">done</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># Required for users &amp; groups stuff</span>
+</span></span><span class="line"><span class="cl">mkdir <span class="s2">&#34;</span><span class="nv">$MY_ROOTFS</span><span class="s2">/etc&#34;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="nb">echo</span> <span class="s2">&#34;root:x:0:&#34;</span> &gt; <span class="s2">&#34;</span><span class="nv">$MY_ROOTFS</span><span class="s2">/etc/group&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="nb">echo</span> <span class="s2">&#34;root:x:0:0:root:/root:/bin/sh&#34;</span> &gt; <span class="s2">&#34;</span><span class="nv">$MY_ROOTFS</span><span class="s2">/etc/passwd&#34;</span>
+</span></span></code></pre><h2>Init Setup</h2>
+<p>Now, we can get to actually writing the init scripts that perform the functions described at the beginning of this section.</p>
+<p>Let's write the Stage 1 script, responsible for initializing core system components required by basically any process to function. We'll divide this into functions to make the explanation easier:</p>
+<ol>
+<li><code>mnt_fs</code> - This function is responsible for mounting pseudo-filesystems like <code>/dev</code>, <code>/sys</code> and <code>/proc</code> aswell as user-defined filesystems/mountpoints:</li>
+</ol>
+<pre class="chroma"><code><span class="line"><span class="cl">mnt_fs<span class="o">()</span> <span class="o">{</span>
+</span></span><span class="line"><span class="cl">  mount -t devtmpfs -o <span class="nv">mode</span><span class="o">=</span><span class="m">0755</span> dev /dev
+</span></span><span class="line"><span class="cl">  mount -t sysfs sys /sys
+</span></span><span class="line"><span class="cl">  mount -t proc proc /proc
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1"># Read /etc/fstab (Commented out since we don&#39;t have one)</span>
+</span></span><span class="line"><span class="cl">  <span class="c1"># mount -a</span>
+</span></span><span class="line"><span class="cl"><span class="o">}</span>
+</span></span></code></pre><ol start="2">
+<li><code>coldplug</code> - This function runs the coldplug procedure using the device manager, <code>mdev</code> which ensures that device nodes in <code>/dev</code> are set up and have the correct permissions:</li>
+</ol>
+<pre class="chroma"><code><span class="line"><span class="cl">coldplug<span class="o">()</span> <span class="o">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1"># Execute mdev every time a device node related event is triggered</span>
+</span></span><span class="line"><span class="cl">  <span class="nb">echo</span> /sbin/mdev &gt; /proc/sys/kernel/hotplug
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1"># The -s flag tells mdev to trigger events for initial node population</span>
+</span></span><span class="line"><span class="cl">  <span class="c1"># which would then be handled by mdev itself when it is fork+exec&#39;d by the kernel</span>
+</span></span><span class="line"><span class="cl">  /sbin/mdev -s
+</span></span><span class="line"><span class="cl"><span class="o">}</span>
+</span></span></code></pre><p>A more detailed explanation can be found in the <a href="https://git.busybox.net/busybox/tree/docs/mdev.txt?h=1_18_stable">BusyBox documentation</a>. Also note that it's preferred to run the device manager as a daemon to receive and handle udev events since <code>fork+exec()</code>-ing the device manager for every event is <a href="https://www.kernelconfig.io/config_uevent_helper">quite expensive</a>.</p>
+<ol start="3">
+<li><code>misc</code> - This is the final function where we're just going to put in misc. stuff like setting up the <a href="https://www.man7.org/linux/man-pages/man1/hostname.1.html"><code>hostname</code></a> and the loopback network device (which allows <code>localhost</code> to function):</li>
+</ol>
+<pre class="chroma"><code><span class="line"><span class="cl">misc<span class="o">()</span> <span class="o">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nb">echo</span> <span class="s2">&#34;installgentoo&#34;</span> &gt; /proc/sys/kernel/hostname
+</span></span><span class="line"><span class="cl">  ip link <span class="nb">set</span> up dev lo
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1"># Print out the time taken for the boot process</span>
+</span></span><span class="line"><span class="cl">  <span class="nv">IFS</span><span class="o">=</span>. <span class="nb">read</span> -r boot_time _ &lt; /proc/uptime
+</span></span><span class="line"><span class="cl">  <span class="nb">echo</span> <span class="s2">&#34;Boot stage completed in </span><span class="si">${</span><span class="nv">boot_time</span><span class="si">}</span><span class="s2">s&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="o">}</span>
+</span></span></code></pre><p>Note that in an actual setup, a few more functions are performed which are ommited here since we just want to understand the core concept. More featureful <code>runit</code> scripts can be found in <a href="https://codeberg.org/kiss-community/init">KISS Linux's setup</a>, some documentation for it can be found <a href="https://kisslinux.org/wiki/pkg/baseinit">here</a> and <a href="https://kisslinux.org/wiki/service-management">here</a>.</p>
+<p>This file, which can be found <a href="https://github.com/git-bruh/git-bruh.github.io/tree/master/code/init/stage1.sh">here</a> should be placed in <code>/etc/runit/</code>:</p>
+<pre class="chroma"><code><span class="line"><span class="cl">mkdir -p <span class="s2">&#34;</span><span class="nv">$MY_ROOTFS</span><span class="s2">/etc/runit&#34;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">cp stage1.sh <span class="s2">&#34;</span><span class="nv">$MY_ROOTFS</span><span class="s2">/etc/runit/stage1&#34;</span>
+</span></span><span class="line"><span class="cl">chmod +x <span class="s2">&#34;</span><span class="nv">$MY_ROOTFS</span><span class="s2">/etc/runit/stage1&#34;</span>
+</span></span></code></pre><p>Now coming to stage 2, we'll just define a tty service, stored in <code>/etc/sv</code>. The command to be executed by the init system is simply to be put in an executable file called <code>run</code>:</p>
+<pre class="chroma"><code><span class="line"><span class="cl"><span class="nv">SVDIR</span><span class="o">=</span><span class="s2">&#34;</span><span class="nv">$MY_ROOTFS</span><span class="s2">/etc/runit/sv&#34;</span>
+</span></span><span class="line"><span class="cl">mkdir -p <span class="s2">&#34;</span><span class="nv">$SVDIR</span><span class="s2">&#34;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">mkdir -p <span class="s2">&#34;</span><span class="nv">$SVDIR</span><span class="s2">/tty1&#34;</span>
+</span></span><span class="line"><span class="cl">cat &gt; <span class="s2">&#34;</span><span class="nv">$SVDIR</span><span class="s2">/tty1/run&#34;</span> <span class="s">&lt;&lt;EOF
+</span></span></span><span class="line"><span class="cl"><span class="s">#!/bin/sh
+</span></span></span><span class="line"><span class="cl"><span class="s"># Automatically login as root without a password
+</span></span></span><span class="line"><span class="cl"><span class="s"># -l changes the LOGIN command to be executed such that it
+</span></span></span><span class="line"><span class="cl"><span class="s"># executes /bin/su directly instead of asking for a password
+</span></span></span><span class="line"><span class="cl"><span class="s"># We use ttyS0 instead of tty1 as this will run under Qemu
+</span></span></span><span class="line"><span class="cl"><span class="s">/sbin/getty 38400 ttyS0 -l /bin/su
+</span></span></span><span class="line"><span class="cl"><span class="s">EOF</span>
+</span></span><span class="line"><span class="cl">chmod +x <span class="s2">&#34;</span><span class="nv">$SVDIR</span><span class="s2">/tty1/run&#34;</span>
+</span></span></code></pre><p>The <a href="https://www.unix.com/man-page/Linux/8/getty"><code>getty</code></a> command basically sets up a TTY and executes the <code>login</code> command, allowing the user to login.</p>
+<p><strong>NOTE:</strong> In a non-trivial setup, this step would include services for various daemons such as <code>dhcpcd</code>, <code>ntpd</code>, etc. aswell, which would be defined in a similar fashion. For example, look at Void Linux's <a href="https://github.com/void-linux/void-packages/blob/master/srcpkgs/openntpd/files/openntpd/run"><code>ntpd</code> service</a>.</p>
+<p><strong>NOTE:</strong> In traditional setups, <code>/etc/sv</code> is used more like a database of all the available services which are then symlinked to the <code>/var/service</code> (or similar) directory, and <code>runsvdir</code> is run on <code>/var/service</code>. You can read more about this on the respective <a href="https://docs.voidlinux.org/config/services/index.html">Void Linux</a> and <a href="https://wiki.artixlinux.org/Main/Runit">Artix Linux</a> pages.</p>
+<p>As for stage 3, we don't really need one here since the init &amp; kernel perform most of the cleanup for us. It might be useful in certain cases though, such as unmounting network filesystems.</p>
+<p>Finally, for actually telling <code>runit</code> (the busybox variant) of where to actually find the scripts &amp; services we defined, we'll use the <code>/etc/inittab</code> file:</p>
+<pre class="chroma"><code><span class="line"><span class="cl">cat &gt; <span class="s2">&#34;</span><span class="nv">$MY_ROOTFS</span><span class="s2">/etc/inittab&#34;</span> <span class="s">&lt;&lt;EOF
+</span></span></span><span class="line"><span class="cl"><span class="s">::sysinit:/etc/runit/stage1
+</span></span></span><span class="line"><span class="cl"><span class="s">::respawn:/usr/bin/runsvdir -P /etc/runit/sv
+</span></span></span><span class="line"><span class="cl"><span class="s">EOF</span>
+</span></span></code></pre><p>The <code>sysinit</code> directive points to the <code>stage1</code> script, whereas the <code>respawn</code> directive tells it to run <code>runsvdir</code> (and restart it if it crashes for some reason), which in turn runs/supervises all the services defined in <code>/etc/runit/sv</code></p>
+<h2>Running The System</h2>
+<p>We'll now run the system we just built using Qemu, for which we need to perform two more tasks:</p>
+<ul>
+<li>
+<p>Packing the rootfs into an initramfs</p>
+</li>
+<li>
+<p>Building a bootable kernel</p>
+</li>
+</ul>
+<p>Why are we creating an initramfs based on the root filesystem? The initramfs is loaded by the kernel and is responsible for doing preliminary tasks such as loading modules for core components such as filesystems. Now we're going to exploit this fact to obviate the need to have any real partitions set up at all, so that we don't need to create a proper Qemu image and set up a bootloader and all that boring stuff.</p>
+<p>For creating an initramfs, we'll just use the <a href="https://linux.die.net/man/1/cpio"><code>cpio</code></a> command:</p>
+<pre class="chroma"><code><span class="line"><span class="cl"><span class="nb">cd</span> <span class="s2">&#34;</span><span class="nv">$MY_ROOTFS</span><span class="s2">&#34;</span>
+</span></span><span class="line"><span class="cl">find . <span class="p">|</span> cpio -o -H newc &gt; ../initramfs.cpio
+</span></span></code></pre><p>Now, we'll configure the kernel; won't be going too much in detail here, just sticking with the defaults:</p>
+<pre class="chroma"><code><span class="line"><span class="cl">curl -LO https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.1.38.tar.xz
+</span></span><span class="line"><span class="cl"><span class="nb">cd</span> linux-6.1.38
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># Create a config with default options</span>
+</span></span><span class="line"><span class="cl">make defconfig
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># Enable CONFIG_UEVENT_HELPER for `mdev` to work, as described in the setup section</span>
+</span></span><span class="line"><span class="cl"><span class="nb">echo</span> <span class="s2">&#34;CONFIG_UEVENT_HELPER=y&#34;</span> &gt;&gt; .config
+</span></span><span class="line"><span class="cl">make olddefconfig
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># Build the kernel. might take a while...</span>
+</span></span><span class="line"><span class="cl">make -j<span class="s2">&#34;</span><span class="k">$(</span>nproc<span class="k">)</span><span class="s2">&#34;</span>
+</span></span></code></pre><p>At this stage, your directory tree should look something like this:</p>
+<pre class="chroma"><code><span class="line"><span class="cl">.
+</span></span><span class="line"><span class="cl">├── ...
+</span></span><span class="line"><span class="cl">├── initramfs.cpio
+</span></span><span class="line"><span class="cl">└── rootfs
+</span></span><span class="line"><span class="cl">linux-6.1.38/arch/x86/boot
+</span></span><span class="line"><span class="cl">├── ...
+</span></span><span class="line"><span class="cl">└── bzImage
+</span></span></code></pre><p>Now, we can finally run the system:</p>
+<pre class="chroma"><code><span class="line"><span class="cl">qemu-system-x86_64 <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>  -enable-kvm <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>  -cpu host <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>  -kernel linux-6.1.38/arch/x86/boot/bzImage <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>  -initrd ./initramfs.cpio <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>  -nographic <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>  -append <span class="s1">&#39;rdinit=/sbin/init console=ttyS0&#39;</span> <span class="c1"># Execute /sbin/init (runit) as PID 1</span>
+</span></span></code></pre><p>The system boots in less than 600ms (almost all of it being from the kernel itself, since the init scripts themselves barely do anything :p), we can see the service manager in action here aswell since the login prompt re-appears when we exit the shell:</p>
+<pre class="chroma"><code><span class="line"><span class="cl"><span class="o">[</span>    0.546986<span class="o">]</span> Freeing unused kernel image <span class="o">(</span>text/rodata gapK
+</span></span><span class="line"><span class="cl"><span class="o">[</span>    0.547760<span class="o">]</span> Freeing unused kernel image <span class="o">(</span>rodata/data gapK
+</span></span><span class="line"><span class="cl"><span class="o">[</span>    0.571559<span class="o">]</span> x86/mm: Checked W+X mappings: passed, no W+X.
+</span></span><span class="line"><span class="cl"><span class="o">[</span>    0.571841<span class="o">]</span> Run /sbin/init as init process
+</span></span><span class="line"><span class="cl"><span class="o">[</span>    0.572642<span class="o">]</span> mount <span class="o">(</span>70<span class="o">)</span> used greatest stack depth: <span class="m">13856</span> t
+</span></span><span class="line"><span class="cl">Boot stage completed in 0s
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="o">[</span>    1.148601<span class="o">]</span> input: ImExPS/2 Generic3
+</span></span><span class="line"><span class="cl">installgentoo login: root
+</span></span><span class="line"><span class="cl">/etc/runit/sv/tty1 <span class="c1"># whoami</span>
+</span></span><span class="line"><span class="cl">root
+</span></span><span class="line"><span class="cl">/etc/runit/sv/tty1 <span class="c1"># sv status tty1</span>
+</span></span><span class="line"><span class="cl">run: tty1: <span class="o">(</span>pid 77<span class="o">)</span> 33s
+</span></span><span class="line"><span class="cl">/etc/runit/sv/tty1 <span class="c1"># exit</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">installgentoo login: root
+</span></span><span class="line"><span class="cl">/etc/runit/sv/tty1 <span class="c1"># sv status tty1</span>
+</span></span><span class="line"><span class="cl">run: tty1: <span class="o">(</span>pid 94<span class="o">)</span> 3s
+</span></span><span class="line"><span class="cl">/etc/runit/sv/tty1 <span class="c1"># # Time &amp; PID reset due to restart</span>
+</span></span></code></pre><p>Similarly, any other long-running service such as <code>dhcpcd</code> would automatically be restarted when it's either killed, or an <code>sv restart dhcpcd</code> command is issued.</p>
+<p>Finally, the <code>poweroff</code> command signals <code>init</code>, causing it to clean up all the process first by sending them a SIGTERM, and then a SIGKILL (which can't be ignored and always kills the process) and power off the system:</p>
+<pre class="chroma"><code><span class="line"><span class="cl">...
+</span></span><span class="line"><span class="cl">/etc/runit/sv/tty1 <span class="c1"># poweroff</span>
+</span></span><span class="line"><span class="cl">The system is going down NOW!
+</span></span><span class="line"><span class="cl">Sent SIGTERM to all processes
+</span></span><span class="line"><span class="cl">Terminated
+</span></span><span class="line"><span class="cl">Sent SIGKILL to all processes
+</span></span><span class="line"><span class="cl">Requesting system poweroff
+</span></span><span class="line"><span class="cl"><span class="o">[</span>  226.245418<span class="o">]</span> ACPI: PM: Preparing to enter system sleep st5
+</span></span><span class="line"><span class="cl"><span class="o">[</span>  226.245679<span class="o">]</span> reboot: Power down
+</span></span></code></pre>
+</article>
+    </main>
+  </body>
+</html>
