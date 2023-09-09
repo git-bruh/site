@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang=en>
+  <head>
+    <title>Profiling Function Runtime Using perf</title>
+    <link rel="stylesheet" href="style.css" type="text/css">
+    <link rel="icon" type="image/png" sizes="64x64" href="favicon.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta property="og:type" content="article" />
+<meta property="og:title" content="Profiling Function Runtime Using perf" />
+<meta property="og:description" content="Profiling Function Runtime Using perf" />
+  </head>
+
+  <body>
+    <main>
+      <nav>
+        <ul>
+          <li><a href=/>home</a></li>
+          <li><a href=/resume.pdf>resume</a></li>
+          <li><a href=https://github.com/git-bruh>github</a></li>
+        </ul>
+      </nav>
+<article align="left">
+<h1>Profiling Function Runtime Using <code>perf</code></h1>
+<p>In the standard <code>perf</code> use-case, we can only retrieve the execution time of each function as a percentage of the total runtime, as opposed to absolute values. This data is then fed into tools like <a href="https://github.com/flamegraph-rs/flamegraph">flamegraph</a>, or just analyzed with <code>perf report</code>:</p>
+<pre class="chroma"><code><span class="line"><span class="cl">$ cc garbage.c -g3
+</span></span><span class="line"><span class="cl">$ perf record --call-graph dwarf ./a.out
+</span></span><span class="line"><span class="cl"><span class="o">[</span> perf record: Woken up &lt;...&gt; <span class="nb">times</span> to write data <span class="o">]</span>
+</span></span><span class="line"><span class="cl"><span class="o">[</span> perf record: Captured and wrote &lt;...&gt; MB perf.data <span class="o">(</span>&lt;...&gt; samples<span class="o">)</span> <span class="o">]</span>
+</span></span><span class="line"><span class="cl">$ perf report
+</span></span><span class="line"><span class="cl">...
+</span></span><span class="line"><span class="cl">    99.97%    60.26%  a.out    a.out              <span class="o">[</span>.<span class="o">]</span> main
+</span></span><span class="line"><span class="cl">            <span class="p">|</span>          
+</span></span><span class="line"><span class="cl">            <span class="p">|</span>--60.26%--_start
+</span></span><span class="line"><span class="cl">            <span class="p">|</span>          __libc_start_main
+</span></span><span class="line"><span class="cl">            <span class="p">|</span>          0x7fc76f26ac49
+</span></span><span class="line"><span class="cl">            <span class="p">|</span>          main
+</span></span><span class="line"><span class="cl">            <span class="p">|</span>          
+</span></span><span class="line"><span class="cl">             --39.71%--main
+</span></span><span class="line"><span class="cl">                       <span class="p">|</span>          
+</span></span><span class="line"><span class="cl">                        --39.69%--func
+</span></span><span class="line"><span class="cl">...
+</span></span></code></pre><p>Now, getting the absolute runtime of each function is fairly straightforward using <a href="https://man7.org/linux/man-pages/man1/perf-probe.1.html">perf probes</a> but took me a lot of time to figure out the end-to-end usage, which I'll be documenting here.</p>
+<h1>Probes</h1>
+<p>A probe can be registered using the <code>perf probe</code> command, passing the executable and the function (symbol) name to be probed:</p>
+<pre class="chroma"><code><span class="line"><span class="cl">perf probe <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    --exec testbin <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    --add func <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    --add func%return
+</span></span></code></pre><p>This will register two probe events, one for function entry (<code>probe_testbin:func</code>) and one for function return (<code>probe_testbin:func__return</code>):</p>
+<pre class="chroma"><code><span class="line"><span class="cl">Added new events:
+</span></span><span class="line"><span class="cl">  probe_testbin:func   <span class="o">(</span>on func in /tmp/testbin<span class="o">)</span>
+</span></span><span class="line"><span class="cl">  probe_testbin:func__return <span class="o">(</span>on func%return in /tmp/testbin<span class="o">)</span>
+</span></span><span class="line"><span class="cl">...
+</span></span></code></pre><p>Now, we can use these probes to profile the individual functions. We use <code>perf record</code> with the <code>-e</code> flag to match all the events registered by us so we don't have to pass them individually (those events won't be recorded by default):</p>
+<pre class="chroma"><code><span class="line"><span class="cl"><span class="c1"># Matches probe_testbin:func and probe_testbin:func__return</span>
+</span></span><span class="line"><span class="cl">perf record <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    -e <span class="s1">&#39;probe_testbin:*&#39;</span> <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    --call-graph dwarf <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    ./testbin
+</span></span></code></pre><p>Note that the using frame pointers for call graph collection (<code>--call-graph fp</code>) likely has lower overhead than stack unwinding (<code>--call-graph dwarf</code>) but requires your program to be compiled with the <code>-fno-omit-frame-pointer</code> flag.</p>
+<p>Finally, we can extract the relevant insights using <code>perf script</code>:</p>
+<pre class="chroma"><code><span class="line"><span class="cl">perf script <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    -F <span class="s2">&#34;comm,pid,tid,cpu,time,event&#34;</span>
+</span></span></code></pre><p>We log various other fields like the PID and TID which can be useful to correlate the output with the thread and process a function was executed under. The code runs for 4 iterations, sleeping for 1 second on one iteration, and 2 seconds on the other:</p>
+<pre class="chroma"><code><span class="line"><span class="cl">testbin  4583/4583  <span class="o">[</span>011<span class="o">]</span> 18314.387304:         probe_testbin:func: 
+</span></span><span class="line"><span class="cl">testbin  4583/4583  <span class="o">[</span>011<span class="o">]</span> 18315.388390: probe_testbin:func__return: 
+</span></span><span class="line"><span class="cl">testbin  4583/4583  <span class="o">[</span>011<span class="o">]</span> 18315.388413:         probe_testbin:func: 
+</span></span><span class="line"><span class="cl">testbin  4583/4583  <span class="o">[</span>011<span class="o">]</span> 18317.390484: probe_testbin:func__return: 
+</span></span><span class="line"><span class="cl">testbin  4583/4583  <span class="o">[</span>011<span class="o">]</span> 18317.390504:         probe_testbin:func: 
+</span></span><span class="line"><span class="cl">testbin  4583/4583  <span class="o">[</span>011<span class="o">]</span> 18318.391566: probe_testbin:func__return: 
+</span></span><span class="line"><span class="cl">testbin  4583/4583  <span class="o">[</span>011<span class="o">]</span> 18318.391584:         probe_testbin:func: 
+</span></span><span class="line"><span class="cl">testbin  4583/4583  <span class="o">[</span>011<span class="o">]</span> 18320.393642: probe_testbin:func__return:
+</span></span></code></pre><p>If we want to add more probes, we can repeat the steps described above. Existing probes can be removed using the <code>perf probe --del &quot;probe_testbin:*&quot;</code> command.</p>
+<h1>Automating The Process</h1>
+<p>We can write a few helper scripts for all this to make our lives a bit easier and handle quirks like name mangling for languagues like C++ and Rust.</p>
+<p>Example code (C++), compile with <code>c++ &lt;file&gt; -g3 -o testbin</code></p>
+<pre class="chroma"><code><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;poll.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;stddef.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span><span class="line"><span class="cl"><span class="c1">// Useless class
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">class</span> <span class="nc">Garbage</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span><span class="o">:</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// Useless overload to illustrate demangling quirks
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">static</span> <span class="kt">void</span> <span class="n">func</span><span class="p">(</span><span class="kt">int</span> <span class="n">i</span><span class="p">)</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">static</span> <span class="kt">void</span> <span class="nf">func</span><span class="p">(</span><span class="kt">int</span> <span class="n">i</span><span class="p">,</span> <span class="kt">void</span> <span class="o">*</span><span class="n">p</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// Sleep for 1 seconds for multiples of 2, else 2
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">poll</span><span class="p">(</span><span class="nb">NULL</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">(</span><span class="n">i</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="o">?</span> <span class="mi">1000</span> <span class="o">:</span> <span class="mi">2000</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">};</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kt">int</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// nop
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">Garbage</span><span class="o">::</span><span class="n">func</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// sleep at alternating intervals
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">for</span> <span class="p">(</span><span class="k">auto</span> <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="mi">4</span><span class="p">;</span> <span class="n">i</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Garbage</span><span class="o">::</span><span class="n">func</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre><p>First, to extract mangled symbols and their addresses:</p>
+<pre class="chroma"><code><span class="line"><span class="cl"><span class="cp">#!/bin/sh
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span><span class="line"><span class="cl"><span class="c1"># Dump the symbol table without truncating the output for terminal width</span>
+</span></span><span class="line"><span class="cl"><span class="c1"># Eg. 18: 000000000000115d    10 FUNC    WEAK   DEFAULT   15 _ZN7Garbage4funcEi</span>
+</span></span><span class="line"><span class="cl">readelf -sW <span class="s2">&#34;</span><span class="nv">$1</span><span class="s2">&#34;</span> <span class="p">|</span> <span class="k">while</span> <span class="nb">read</span> -r _ addr _ is_func _ _ _ mangled_name<span class="p">;</span> <span class="k">do</span>
+</span></span><span class="line"><span class="cl">    <span class="c1"># We only care about function symbols</span>
+</span></span><span class="line"><span class="cl">    <span class="o">[</span> <span class="s2">&#34;</span><span class="nv">$is_func</span><span class="s2">&#34;</span> <span class="o">=</span> <span class="s2">&#34;FUNC&#34;</span> <span class="o">]</span> <span class="o">||</span> <span class="k">continue</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1"># Demangle the symbol using c++filt and output the function address, mangled</span>
+</span></span><span class="line"><span class="cl">    <span class="c1"># and demangled name</span>
+</span></span><span class="line"><span class="cl">    <span class="nb">echo</span> <span class="s2">&#34;</span><span class="nv">$addr</span><span class="s2"> </span><span class="nv">$mangled_name</span><span class="s2"> </span><span class="k">$(</span>c++filt <span class="s2">&#34;</span><span class="nv">$mangled_name</span><span class="s2">&#34;</span><span class="k">)</span><span class="s2">&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="k">done</span>
+</span></span></code></pre><p>Now, we can use this script to extract the relevant functions we want to profile:</p>
+<pre class="chroma"><code><span class="line"><span class="cl"><span class="c1"># Filter out the garbage functions we want to profile</span>
+</span></span><span class="line"><span class="cl">$ ./extract.sh ./testbin <span class="p">|</span> grep Garbage:: <span class="p">|</span> tee extracted
+</span></span><span class="line"><span class="cl"><span class="m">0000000000001174</span> _ZN7Garbage4funcEi Garbage::func<span class="o">(</span>int<span class="o">)</span>
+</span></span><span class="line"><span class="cl">000000000000117e _ZN7Garbage4funcEiPv Garbage::func<span class="o">(</span>int, void*<span class="o">)</span>
+</span></span></code></pre><p>Finally we will use this script to parse the extracted output and register probes:</p>
+<pre class="chroma"><code><span class="line"><span class="cl"><span class="cp">#!/bin/sh
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span><span class="line"><span class="cl"><span class="nb">set</span> -eu
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># Argument 1: path to executable</span>
+</span></span><span class="line"><span class="cl"><span class="nv">EXE</span><span class="o">=</span><span class="s2">&#34;</span><span class="nv">$1</span><span class="s2">&#34;</span> <span class="c1"># /path/to/executable</span>
+</span></span><span class="line"><span class="cl"><span class="nv">EXTRACTED</span><span class="o">=</span><span class="s2">&#34;</span><span class="si">${</span><span class="nv">2</span><span class="k">:-</span><span class="nv">extracted</span><span class="si">}</span><span class="s2">&#34;</span> <span class="c1"># Extracted symbols</span>
+</span></span><span class="line"><span class="cl"><span class="nv">PROBE_PREFIX</span><span class="o">=</span><span class="s2">&#34;</span><span class="k">$(</span>basename <span class="s2">&#34;</span><span class="nv">$EXE</span><span class="s2">&#34;</span><span class="k">)</span><span class="s2">&#34;</span> <span class="c1"># executable</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># Remove all previously registered probes</span>
+</span></span><span class="line"><span class="cl">perf probe --del <span class="s2">&#34;probe_</span><span class="si">${</span><span class="nv">PROBE_PREFIX</span><span class="si">}</span><span class="s2">:*&#34;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">while</span> <span class="nb">read</span> -r addr mangled demangled<span class="p">;</span> <span class="k">do</span>
+</span></span><span class="line"><span class="cl">    perf probe <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>        --exec <span class="s2">&#34;</span><span class="nv">$EXE</span><span class="s2">&#34;</span> <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>        --no-demangle <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>        --add <span class="s2">&#34;</span><span class="si">${</span><span class="nv">mangled</span><span class="si">}</span><span class="s2">&#34;</span> <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>        --add <span class="s2">&#34;</span><span class="si">${</span><span class="nv">mangled</span><span class="si">}</span><span class="s2">%return&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="k">done</span> &lt; <span class="s2">&#34;</span><span class="nv">$EXTRACTED</span><span class="s2">&#34;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># Record all the registered events</span>
+</span></span><span class="line"><span class="cl">perf record <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    -e <span class="s2">&#34;probe_</span><span class="si">${</span><span class="nv">PROBE_PREFIX</span><span class="si">}</span><span class="s2">:*&#34;</span> <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    --call-graph dwarf <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    <span class="s2">&#34;</span><span class="nv">$EXE</span><span class="s2">&#34;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># Output the recorded data</span>
+</span></span><span class="line"><span class="cl">perf script <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    -F <span class="s2">&#34;comm,pid,tid,cpu,time,event&#34;</span>
+</span></span></code></pre><pre class="chroma"><code><span class="line"><span class="cl">$ ./profile.sh ./testbin
+</span></span><span class="line"><span class="cl">Removed event: probe_testbin:_ZN7Garbage4funcEi
+</span></span><span class="line"><span class="cl">Removed event: probe_testbin:_ZN7Garbage4funcEiPv
+</span></span><span class="line"><span class="cl">Removed event: probe_testbin:_ZN7Garbage4funcEiPv__return
+</span></span><span class="line"><span class="cl">Removed event: probe_testbin:_ZN7Garbage4funcEi__return
+</span></span><span class="line"><span class="cl">Added new events:
+</span></span><span class="line"><span class="cl">  probe_testbin:_ZN7Garbage4funcEi <span class="o">(</span>on _ZN7Garbage4funcEi in /tmp/testbin<span class="o">)</span>
+</span></span><span class="line"><span class="cl">  probe_testbin:_ZN7Garbage4funcEi__return <span class="o">(</span>on _ZN7Garbage4funcEi%return in /tmp/testbin<span class="o">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">You can now use it in all perf tools, such as:
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	perf record -e probe_testbin:_ZN7Garbage4funcEi__return -aR sleep <span class="m">1</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">Added new events:
+</span></span><span class="line"><span class="cl">  probe_testbin:_ZN7Garbage4funcEiPv <span class="o">(</span>on _ZN7Garbage4funcEiPv in /tmp/testbin<span class="o">)</span>
+</span></span><span class="line"><span class="cl">  probe_testbin:_ZN7Garbage4funcEiPv__return <span class="o">(</span>on _ZN7Garbage4funcEiPv%return in /tmp/testbin<span class="o">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">You can now use it in all perf tools, such as:
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	perf record -e probe_testbin:_ZN7Garbage4funcEiPv__return -aR sleep <span class="m">1</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="o">[</span> perf record: Woken up <span class="m">1</span> <span class="nb">times</span> to write data <span class="o">]</span>
+</span></span><span class="line"><span class="cl"><span class="o">[</span> perf record: Captured and wrote 0.170 MB perf.data <span class="o">(</span><span class="m">20</span> samples<span class="o">)</span> <span class="o">]</span>
+</span></span><span class="line"><span class="cl">         testbin 15211/15211 <span class="o">[</span>009<span class="o">]</span> 21554.551586:           probe_testbin:_ZN7Garbage4funcEi: 
+</span></span><span class="line"><span class="cl">         testbin 15211/15211 <span class="o">[</span>009<span class="o">]</span> 21554.551646:   probe_testbin:_ZN7Garbage4funcEi__return: 
+</span></span><span class="line"><span class="cl">         testbin 15211/15211 <span class="o">[</span>009<span class="o">]</span> 21554.551650:         probe_testbin:_ZN7Garbage4funcEiPv: 
+</span></span><span class="line"><span class="cl">         testbin 15211/15211 <span class="o">[</span>009<span class="o">]</span> 21556.553685: probe_testbin:_ZN7Garbage4funcEiPv__return: 
+</span></span><span class="line"><span class="cl">         testbin 15211/15211 <span class="o">[</span>009<span class="o">]</span> 21556.553699:         probe_testbin:_ZN7Garbage4funcEiPv: 
+</span></span><span class="line"><span class="cl">         testbin 15211/15211 <span class="o">[</span>009<span class="o">]</span> 21558.556040: probe_testbin:_ZN7Garbage4funcEiPv__return: 
+</span></span><span class="line"><span class="cl">         testbin 15211/15211 <span class="o">[</span>009<span class="o">]</span> 21558.556065:         probe_testbin:_ZN7Garbage4funcEiPv: 
+</span></span><span class="line"><span class="cl">         testbin 15211/15211 <span class="o">[</span>009<span class="o">]</span> 21560.558114: probe_testbin:_ZN7Garbage4funcEiPv__return: 
+</span></span><span class="line"><span class="cl">         testbin 15211/15211 <span class="o">[</span>009<span class="o">]</span> 21560.558125:         probe_testbin:_ZN7Garbage4funcEiPv: 
+</span></span><span class="line"><span class="cl">         testbin 15211/15211 <span class="o">[</span>009<span class="o">]</span> 21562.560209: probe_testbin:_ZN7Garbage4funcEiPv__return:
+</span></span></code></pre><p>Note that this is just a janky example of how you can build abstractions atop this infrastructure, it doesn't handle a couple of things:</p>
+<ul>
+<li>The <code>perf probe</code> command will fail if a mangled name is too long, or .For such cases, this abstraction should be updated to add probes via function addresses and aliases rather than mangled names directly, eg:</li>
+</ul>
+<pre class="chroma"><code><span class="line"><span class="cl"><span class="c1"># This can be an incrementing integer that is correlated to the original order</span>
+</span></span><span class="line"><span class="cl"><span class="c1"># of probe event registration by postprocessing the `perf script` output</span>
+</span></span><span class="line"><span class="cl"><span class="c1"># Example, if a function was registered with the alias of &#34;1&#34;, state can be</span>
+</span></span><span class="line"><span class="cl"><span class="c1"># maintained to make back `probe_testbin:1` to the actual function name</span>
+</span></span><span class="line"><span class="cl"><span class="nv">func_alias</span><span class="o">=</span><span class="s2">&#34;alias_for_func&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="nv">addr</span><span class="o">=</span><span class="s2">&#34;0x000000000000117e&#34;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">perf probe <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    --exec <span class="s2">&#34;</span><span class="nv">$EXE</span><span class="s2">&#34;</span> <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    --no-demangle <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    --add <span class="s2">&#34;</span><span class="si">${</span><span class="nv">func_alias</span><span class="si">}</span><span class="s2">=</span><span class="si">${</span><span class="nv">addr</span><span class="si">}</span><span class="s2">&#34;</span> <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    --add <span class="s2">&#34;</span><span class="si">${</span><span class="nv">func_alias</span><span class="si">}</span><span class="s2">=</span><span class="si">${</span><span class="nv">addr</span><span class="si">}</span><span class="s2">%return&#34;</span>
+</span></span></code></pre><ul>
+<li>It is not possible to directly comprehend the runtime of recursive function calls, since the output would be in the &quot;arrow&quot; pattern:</li>
+</ul>
+<pre class="chroma"><code><span class="line"><span class="cl">testbin 12809/12809 <span class="o">[</span>010<span class="o">]</span> 21286.964017:           probe_testbin:_ZN7Garbage4funcEi: <span class="c1"># Call 1</span>
+</span></span><span class="line"><span class="cl">testbin 12809/12809 <span class="o">[</span>010<span class="o">]</span> 21286.964031:           probe_testbin:_ZN7Garbage4funcEi: <span class="c1"># Call 2</span>
+</span></span><span class="line"><span class="cl">testbin 12809/12809 <span class="o">[</span>010<span class="o">]</span> 21286.964036:           probe_testbin:_ZN7Garbage4funcEi: <span class="c1"># Call 3</span>
+</span></span><span class="line"><span class="cl">testbin 12809/12809 <span class="o">[</span>010<span class="o">]</span> 21286.964041:           probe_testbin:_ZN7Garbage4funcEi: <span class="c1"># Call 4</span>
+</span></span><span class="line"><span class="cl">testbin 12809/12809 <span class="o">[</span>010<span class="o">]</span> 21286.964045:           probe_testbin:_ZN7Garbage4funcEi: <span class="c1"># Call 5</span>
+</span></span><span class="line"><span class="cl">testbin 12809/12809 <span class="o">[</span>010<span class="o">]</span> 21286.964050:           probe_testbin:_ZN7Garbage4funcEi: <span class="c1"># Call 6</span>
+</span></span><span class="line"><span class="cl">testbin 12809/12809 <span class="o">[</span>010<span class="o">]</span> 21286.964057:   probe_testbin:_ZN7Garbage4funcEi__return: <span class="c1"># Ret 6</span>
+</span></span><span class="line"><span class="cl">testbin 12809/12809 <span class="o">[</span>010<span class="o">]</span> 21286.964061:   probe_testbin:_ZN7Garbage4funcEi__return: <span class="c1"># Ret 5</span>
+</span></span><span class="line"><span class="cl">testbin 12809/12809 <span class="o">[</span>010<span class="o">]</span> 21286.964066:   probe_testbin:_ZN7Garbage4funcEi__return: <span class="c1"># Ret 4</span>
+</span></span><span class="line"><span class="cl">testbin 12809/12809 <span class="o">[</span>010<span class="o">]</span> 21286.964070:   probe_testbin:_ZN7Garbage4funcEi__return: <span class="c1"># Ret 3</span>
+</span></span><span class="line"><span class="cl">testbin 12809/12809 <span class="o">[</span>010<span class="o">]</span> 21286.964074:   probe_testbin:_ZN7Garbage4funcEi__return: <span class="c1"># Ret 2</span>
+</span></span><span class="line"><span class="cl">testbin 12809/12809 <span class="o">[</span>010<span class="o">]</span> 21286.964078:   probe_testbin:_ZN7Garbage4funcEi__return: <span class="c1"># Ret 1</span>
+</span></span></code></pre><p>So again, you'd need to build your own abstraction to correlate this type of output to the actual function invocation (hints in the &quot;Call&quot; and &quot;Ret&quot; comments)</p>
+</article>
+    </main>
+  </body>
+</html>
