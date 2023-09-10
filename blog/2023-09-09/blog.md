@@ -1,4 +1,4 @@
-# Profiling Function Runtime Using `perf`
+# Profiling Function Execution Time Using `perf`
 
 In the standard `perf` use-case, we can only retrieve the execution time of each function as a percentage of the total runtime, as opposed to absolute values. This data is then fed into tools like [flamegraph](https://github.com/flamegraph-rs/flamegraph), or just analyzed with `perf report`:
 
@@ -243,4 +243,4 @@ testbin 12809/12809 [010] 21286.964074:   probe_testbin:_ZN7Garbage4funcEi__retu
 testbin 12809/12809 [010] 21286.964078:   probe_testbin:_ZN7Garbage4funcEi__return: # Ret 1
 ```
 
-So again, you'd need to build your own abstraction to correlate this type of output to the actual function invocation (hints in the "Call" and "Ret" comments)
+So again, you'd need to build your own abstraction to correlate this type of output to the actual function invocation (hints in the "Call" and "Ret" comments). You'd likely want to use `perf script` with another language as described in [this](https://scicoding.com/measuring-function-execution-time-with-perf) article, though I'm not sure if it would handle recursive calls by default.
