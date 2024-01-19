@@ -51,6 +51,10 @@ get_md_title() {
     cat "$1/title"
 }
 
+get_md_href() {
+    cat "$1/href" 2>/dev/null
+}
+
 sanitize_quotes() {
     sed 's/"/\&quot;/g' < "$1"
 }
@@ -70,11 +74,12 @@ gen_table_elements() {
         date="$(get_md_date "$page")"
         basename="$(get_md_basename "$page")"
         title="$(get_md_title "$page")"
+        href="$(get_md_href "$page" || echo "${basename}.html")"
 
         cat <<EOF
 <tr>
   <td align="left">
-    <a href="${basename}.html">${title}</a>
+    <a href="${href}">${title}</a>
   </td>
   <td align="right">
     ${date}
@@ -144,6 +149,7 @@ main() {
     gen_main_page
 
     for post in "$BLOGDIR"/*; do
+        get_md_href "$post" >/dev/null && continue
         gen_blog_page "$post"
     done
 
