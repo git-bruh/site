@@ -1,0 +1,1 @@
+In this series of blog posts, we'll build a KVM-based hypervisor from scratch, eventually making it boot the Linux kernel. The first post will go over a "hello world" KVM example in Rust, and assumes basic systems programming knowledge (writing trivial assembly, using syscalls, ioctl's, etc.)
