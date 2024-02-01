@@ -21,6 +21,7 @@ ioctl_write_ptr!(
     0x46,
     kvm_userspace_memory_region
 );
+ioctl_read!(kvm_get_regs, KVMIO, 0x81, kvm_regs);
 ioctl_write_ptr!(kvm_set_regs, KVMIO, 0x82, kvm_regs);
 ioctl_read!(kvm_get_sregs, KVMIO, 0x83, kvm_sregs);
 ioctl_write_ptr!(kvm_set_sregs, KVMIO, 0x84, kvm_sregs);
@@ -108,6 +109,13 @@ impl Kvm {
         unsafe { kvm_set_sregs(self.vcpu.as_raw_fd(), regs)? };
 
         Ok(())
+    }
+
+    pub fn get_vcpu_regs(&self) -> Result<kvm_regs, std::io::Error> {
+        let mut regs = kvm_regs::default();
+        unsafe { kvm_get_regs(self.vcpu.as_raw_fd(), &mut regs)? };
+
+        Ok(regs)
     }
 
     pub fn set_vcpu_regs(&self, regs: *const kvm_regs) -> Result<(), std::io::Error> {
