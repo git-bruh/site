@@ -361,14 +361,14 @@ Now obviously, there is quite a bit of overhead when emulating hardware in this 
 
 # Conclusion
 
-In this post, we covered a small overview of the Linux KVM API, and implemented a hello-world esque hypervisor. In the next posts, we'll be exploring long mode, paging, and implementing the Linux boot protocol to boot a small Linux kernel image.
+In this post, we covered a small overview of the Linux KVM API, and implemented a hello-world esque hypervisor. In the next posts, we'll be exploring long mode, paging, and implementing the Linux boot protocol to boot a small Linux kernel image. The code for this blog can be found [here](https://github.com/git-bruh/site/tree/master/code/kvm/intro).
 
 # Resources
 
-https://github.com/rust-vmm
+- [Rust VMM](https://github.com/rust-vmm)
 
-https://www.kernel.org/doc/html/latest/virt/kvm/api.html
+- [KVM API Reference](https://www.kernel.org/doc/html/latest/virt/kvm/api.html)
 
-https://lwn.net/Articles/658511/
+- [Using the KVM API](https://lwn.net/Articles/658511)
 
-https://david942j.blogspot.com/2018/10/note-learning-kvm-implement-your-own.html
+- [Learning KVM](https://david942j.blogspot.com/2018/10/note-learning-kvm-implement-your-own.html)
