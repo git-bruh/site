@@ -110,8 +110,10 @@ gen_page() {
       <nav>
         <ul>
           <li><a href=/>home</a></li>
-          <li><a href=/resume.pdf>resume</a></li>
           <li><a href=https://github.com/git-bruh>github</a></li>
+          <li><a href=https://twitter.com/git_bruh>twitter</a></li>
+          <li><a href=https://www.linkedin.com/in/git-bruh>linkedin</a></li>
+          <li><a href=/resume.pdf>resume</a></li>
         </ul>
       </nav>
 $(cat /dev/stdin)
