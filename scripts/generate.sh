@@ -93,11 +93,16 @@ gen_page() {
     title="$1"
     og_tags="${2:-}"
 
+    # TODO get rid of Google
     cat <<EOF
 <!DOCTYPE html>
 <html lang=en>
   <head>
     <title>${title}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="${SITE_STYLE_CSS}" type="text/css">
     <link rel="icon" type="image/png" sizes="64x64" href="${SITE_FAVICON}">
     <meta charset="UTF-8">

@@ -5,6 +5,7 @@
   --links: #b4befe;
   --links-light: #585b70;
   --links-dark: #45475a;
+  font-family: "Inter", sans-serif;
 }
 
 ::-webkit-scrollbar {
@@ -53,6 +54,7 @@ a:hover {
 main {
   padding: 0;
   line-height: 150%;
+  font-family: "Inter", sans-serif;
 }
 
 body {
@@ -92,6 +94,7 @@ pre code {
   margin: 12px;
   display: inline-block;
   text-size-adjust: none;
+  font-family: "JetBrains Mono", monospace;
   -ms-text-size-adjust: none;
   -moz-text-size-adjust: none;
   -webkit-text-size-adjust: none;
