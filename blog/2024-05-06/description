@@ -1,0 +1,1 @@
+In this post, we'll make our hypervisor boot the Linux kernel into a basic userspace consisting of a dummy `init`, covering topics like long mode, paging, the Linux boot protocol, and various KVM APIs
