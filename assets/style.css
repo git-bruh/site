@@ -57,10 +57,18 @@ main {
   font-family: "Inter", sans-serif;
 }
 
+h1, h2, h3, h4, h5, h6 {
+  line-height: 1;
+}
+
 body {
   max-width: 700px;
   padding: 0 14px;
   margin: 40px auto;
+}
+
+img {
+  max-width: 700px;
 }
 
 table {
