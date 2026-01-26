@@ -1,0 +1,1 @@
+Being a daily driver of a source-based Linux distribution, I recently had the idea of partly offloading package builds to my M3 MacBook (that mostly sits idle) for a potential speed up. In this post we'll be exploring how the icecream distributed compilation tool works and the challenges I faced setting it up in a multi-architecture environment
